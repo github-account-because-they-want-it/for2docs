@@ -1,0 +1,13 @@
+{# expects the 'classes' variable #}
+<h2>Classes</h2>
+{% for class in classes %}
+{% if loop.first %}
+  <ul>
+{% endif %}
+    <li><a href="{{ class.link|default('#', true) }}">{{ class.caption }}</a></li>
+{% if loop.last %}
+  </ul>
+{% endif %}
+{% else %}
+<h3>No Classes defined here</h3>
+{% endfor %}

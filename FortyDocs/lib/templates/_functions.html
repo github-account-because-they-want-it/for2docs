@@ -1,0 +1,19 @@
+{# expects a 'functions' variable #}
+<h2>Functions&nbsp;&nbsp;<small><a id="fcollapser" data-toggle="collapse" data-target="arguments" href="">Expand Arguments</a></small></h2>
+  {% for function in functions %}
+  {% if loop.first %}
+  <ul class="functions">
+  {% endif %}
+    <li><b>{{ function.caption }}</b>
+    {% if function.comment|trim %}
+      <p><blockquote>{{ function.comment }}</blockquote></p>
+    {% endif %}
+    {% set subroutine=function %}
+    {% include "_arguments.html" %}
+    </li>
+    {% if loop.last %}
+    </ul>
+    {% endif %}
+  {% else %}
+  <h3>No Functions Defined Here</h3>
+  {% endfor %}

@@ -1,0 +1,27 @@
+.label {
+	font-size: 20px;
+}
+ul[class^='class-diagram']{
+	display: none;
+}
+div.orgChart div.node {
+	min-width: 200px;
+	max-height: 100px;
+	height: 50px;
+	padding-top: 12px;
+}
+div.orgChart td {
+	text-align: center;
+	vertical-align: top;
+	padding: 0px 2px;
+}
+div.orgChart div.node.original{
+	background-color: #ffffff;
+  color: #c0c0c0; 
+}
+ul.arguments {
+	background-color: #eaeaea;
+}
+ul.subroutines blockquote, ul.functions blockquote {
+	font-size: 11px;
+}
