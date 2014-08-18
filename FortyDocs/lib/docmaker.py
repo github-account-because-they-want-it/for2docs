@@ -41,9 +41,9 @@ class HTMLDocMaker(object):
     self._generateMainIndex()
     
   def _generateFileDocs(self):
-    assets_directory = self._fshandler.assetsDirectory(self._fshandler.FROM_FILE_FOLDER)
-    home_index = self._fshandler.homeIndex(self._fshandler.FROM_FILE_FOLDER)
-    class_index = self._fshandler.classIndex(self._fshandler.FROM_FILE_FOLDER)
+    assets_directory = self._fshandler.assetsDirectory(FileSystemHandler.FROM_FILE_FOLDER)
+    home_index = self._fshandler.homeIndex(FileSystemHandler.FROM_FILE_FOLDER)
+    class_index = self._fshandler.classIndex(FileSystemHandler.FROM_FILE_FOLDER)
     dbfiles = session.query(File).all()
     # sort here because it won't help t use order_by on directories
     dbfiles.sort(key=lambda f : self._fshandler.pureFileName(f.name).lower())
@@ -68,9 +68,9 @@ class HTMLDocMaker(object):
     print()
     
   def _generateProgramDocs(self):
-    assets_directory = self._fshandler.assetsDirectory(self._fshandler.FROM_PROGRAM_FOLDER)
-    home_index = self._fshandler.homeIndex(self._fshandler.FROM_PROGRAM_FOLDER)
-    class_index = self._fshandler.classIndex(self._fshandler.FROM_PROGRAM_FOLDER)
+    assets_directory = self._fshandler.assetsDirectory(FileSystemHandler.FROM_PROGRAM_FOLDER)
+    home_index = self._fshandler.homeIndex(FileSystemHandler.FROM_PROGRAM_FOLDER)
+    class_index = self._fshandler.classIndex(FileSystemHandler.FROM_PROGRAM_FOLDER)
     dbprograms = session.query(ProgramFile).all()
     dbprograms = sorted(dbprograms, key=lambda program : self._fshandler.pureFileName(program.name).lower())
     for dbprogram in dbprograms:
@@ -92,25 +92,25 @@ class HTMLDocMaker(object):
     print()
     
   def _generateModuleDocs(self):
-    assets_directory = self._fshandler.assetsDirectory(self._fshandler.FROM_MODULE_FOLDER)
-    home_index = self._fshandler.homeIndex(self._fshandler.FROM_MODULE_FOLDER)
-    class_index = self._fshandler.classIndex(self._fshandler.FROM_MODULE_FOLDER)
+    assets_directory = self._fshandler.assetsDirectory(FileSystemHandler.FROM_MODULE_FOLDER)
+    home_index = self._fshandler.homeIndex(FileSystemHandler.FROM_MODULE_FOLDER)
+    class_index = self._fshandler.classIndex(FileSystemHandler.FROM_MODULE_FOLDER)
     dbmodules = session.query(Module).order_by(Module.name).all()
     for dbmodule in dbmodules:
       module_caption = dbmodule.name
       module_file = session.query(File).filter(File.id==dbmodule.file_id).first()
-      module_file_doc = self._fshandler.fileDocForPath(module_file.name, perspective=self._fshandler.FROM_MODULE_FOLDER)
+      module_file_doc = self._fshandler.fileDocForPath(module_file.name, perspective=FileSystemHandler.FROM_MODULE_FOLDER)
       module_file_caption = self._fshandler.pureFileName(module_file.name)
       module_comment = dbmodule.comment
       module_dbclasses = dbmodule.classes
-      template_classes = self._parseClasses(module_dbclasses, perspective=self._fshandler.FROM_MODULE_FOLDER)
+      template_classes = self._parseClasses(module_dbclasses, perspective=FileSystemHandler.FROM_MODULE_FOLDER)
       module_dependencies = dbmodule.dependencies
       template_dependencies = self._parseDependencies(module_dependencies, 
-                                                      perspective=self._fshandler.FROM_MODULE_FOLDER)
+                                                      perspective=FileSystemHandler.FROM_MODULE_FOLDER)
       module_dbsubroutines = dbmodule.subroutines
       template_subroutines, template_functions = self._parseSubroutines(module_dbsubroutines, 
-                                                                        perspective=self._fshandler.FROM_MODULE_FOLDER)
-      trees = self._parseTrees(dbmodule.classes, perspective=self._fshandler.FROM_MODULE_FOLDER)
+                                                                        perspective=FileSystemHandler.FROM_MODULE_FOLDER)
+      trees = self._parseTrees(dbmodule.classes, perspective=FileSystemHandler.FROM_MODULE_FOLDER)
       if NOISY:
         print("Rendering template modules/{}".format(self._fshandler.makeHtml(dbmodule.name)))
       module_template = env.get_template("module.html")
@@ -131,9 +131,9 @@ class HTMLDocMaker(object):
     print()
   
   def _generateClassDocs(self):
-    assets_directory = self._fshandler.assetsDirectory(self._fshandler.FROM_CLASS_FOLDER)
-    home_index = self._fshandler.homeIndex(self._fshandler.FROM_CLASS_FOLDER)
-    class_index = self._fshandler.classIndex(self._fshandler.FROM_CLASS_FOLDER)
+    assets_directory = self._fshandler.assetsDirectory(FileSystemHandler.FROM_CLASS_FOLDER)
+    home_index = self._fshandler.homeIndex(FileSystemHandler.FROM_CLASS_FOLDER)
+    class_index = self._fshandler.classIndex(FileSystemHandler.FROM_CLASS_FOLDER)
     dbclasses = session.query(Class).order_by(Class.name).all()
     for dbclass in dbclasses:
       class_name = dbclass.name
@@ -141,7 +141,7 @@ class HTMLDocMaker(object):
       if class_module:
         class_module_caption = class_module.name
         class_module_doc = self._fshandler.moduleDocForName(class_module.name, 
-                                                            perspective=self._fshandler.FROM_CLASS_FOLDER)
+                                                            perspective=FileSystemHandler.FROM_CLASS_FOLDER)
       else:
         class_module_caption = None
         class_module_doc = None
@@ -152,7 +152,7 @@ class HTMLDocMaker(object):
         if class_file is not None:
           class_file_caption = self._fshandler.pureFileName(class_file.name)
           class_file_doc = self._fshandler.fileDocForPath(class_file.name, 
-                                                          perspective=self._fshandler.FROM_MODULE_FOLDER)
+                                                          perspective=FileSystemHandler.FROM_MODULE_FOLDER)
         else:
           class_file_caption = None
           class_file_doc = None
@@ -162,8 +162,8 @@ class HTMLDocMaker(object):
       class_comment = dbclass.comment
       class_dbroutines = dbclass.subroutines
       template_subroutines, template_functions = self._parseSubroutines(class_dbroutines, 
-                                                                        perspective=self._fshandler.FROM_CLASS_FOLDER)
-      trees = self._parseTrees([dbclass], perspective=self._fshandler.FROM_CLASS_FOLDER) # remember, template requires arrays
+                                                                        perspective=FileSystemHandler.FROM_CLASS_FOLDER)
+      trees = self._parseTrees([dbclass], perspective=FileSystemHandler.FROM_CLASS_FOLDER) # remember, template requires arrays
       class_output_file = self._fshandler.getSaveClassName(dbclass.name)
       if NOISY:
         print("Rendering template classes/{}".format(self._fshandler.makeHtml(dbclass.name)))
@@ -185,13 +185,13 @@ class HTMLDocMaker(object):
     
   def _generateClassIndex(self):
     # put the class index in the classes directory
-    assets_directory = self._fshandler.assetsDirectory(self._fshandler.FROM_CLASS_FOLDER)
-    home_index = self._fshandler.homeIndex(self._fshandler.FROM_CLASS_FOLDER)
-    class_index= self._fshandler.classIndex(self._fshandler.FROM_CLASS_FOLDER)
-    index_doc = self._fshandler.homeIndex(self._fshandler.FROM_CLASS_FOLDER)
+    assets_directory = self._fshandler.assetsDirectory(FileSystemHandler.FROM_CLASS_FOLDER)
+    home_index = self._fshandler.homeIndex(FileSystemHandler.FROM_CLASS_FOLDER)
+    class_index= self._fshandler.classIndex(FileSystemHandler.FROM_CLASS_FOLDER)
+    index_doc = self._fshandler.homeIndex(FileSystemHandler.FROM_CLASS_FOLDER)
     output_file_name = self._fshandler.getSaveClassIndexName()
     dbclasses = session.query(Class).order_by(Class.name).all()
-    trees = self._parseTrees(dbclasses, self._fshandler.FROM_CLASS_FOLDER)
+    trees = self._parseTrees(dbclasses, FileSystemHandler.FROM_CLASS_FOLDER)
     if NOISY:
       print("Rendering template classes/_index.html")
     class_template = env.get_template("class_index.html")
@@ -205,21 +205,21 @@ class HTMLDocMaker(object):
     
   def _generateMainIndex(self):
     output_file_name = self._fshandler.getSaveIndexName()
-    assets_directory = self._fshandler.assetsDirectory(self._fshandler.FROM_INDEX_FOLDER)
-    home_index = self._fshandler.homeIndex(self._fshandler.FROM_INDEX_FOLDER)
-    class_index= self._fshandler.classIndex(self._fshandler.FROM_INDEX_FOLDER)
+    assets_directory = self._fshandler.assetsDirectory(FileSystemHandler.FROM_INDEX_FOLDER)
+    home_index = self._fshandler.homeIndex(FileSystemHandler.FROM_INDEX_FOLDER)
+    class_index= self._fshandler.classIndex(FileSystemHandler.FROM_INDEX_FOLDER)
     dbprograms = session.query(ProgramFile).all()
     dbprograms.sort(key=lambda program:self._fshandler.pureFileName(program.name).lower())
-    template_programs = self._parsePrograms(dbprograms, perspective=self._fshandler.FROM_INDEX_FOLDER)
+    template_programs = self._parsePrograms(dbprograms, perspective=FileSystemHandler.FROM_INDEX_FOLDER)
     dbfiles = session.query(File).all()
     dbfiles.sort(key=lambda dbfile:self._fshandler.pureFileName(dbfile.name).lower())
-    template_files = self._parseFiles(dbfiles, perspective=self._fshandler.FROM_INDEX_FOLDER) 
+    template_files = self._parseFiles(dbfiles, perspective=FileSystemHandler.FROM_INDEX_FOLDER) 
     dbmodules = session.query(Module).all()
     dbmodules.sort(key=lambda dbmodule: dbmodule.name.lower())
-    template_modules = self._parseModules(dbmodules, perspective=self._fshandler.FROM_INDEX_FOLDER)
+    template_modules = self._parseModules(dbmodules, perspective=FileSystemHandler.FROM_INDEX_FOLDER)
     dbclasses = session.query(Class).all()
     dbclasses.sort(key=lambda dbclass:dbclass.name.lower())
-    template_classes = self._parseClasses(dbclasses, perspective=self._fshandler.FROM_INDEX_FOLDER)
+    template_classes = self._parseClasses(dbclasses, perspective=FileSystemHandler.FROM_INDEX_FOLDER)
     if NOISY:
       print("Rendering main index")
     index_template = env.get_template("index.html")
@@ -412,7 +412,7 @@ class HTMLDocMaker(object):
   def _treesForFile(self, dbFile):
     # make a tree for each class in the file
     file_dbclasses = session.query(Class).join(Module).filter(Module.file_id==dbFile.id).all()
-    trees = self._parseTrees(file_dbclasses, perspective=self._fshandler.FROM_FILE_FOLDER)
+    trees = self._parseTrees(file_dbclasses, perspective=FileSystemHandler.FROM_FILE_FOLDER)
     return trees
   
   def _parseTrees(self, dbClasses, perspective):
