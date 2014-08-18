@@ -235,10 +235,11 @@ class HTMLDocMaker(object):
     print()
       
   def _getSubroutinesForFile(self, dbFile):
+    perspective = self._perspectiveForFile(dbFile)
     file_id = dbFile.id
     dbsubroutines = session.query(FileSubroutine).filter(FileSubroutine.file_id==file_id).all()
     template_subroutines, template_functions = self._parseSubroutines(dbsubroutines, 
-                                                                      perspective=self._fshandler.FROM_FILE_FOLDER)
+                                                                      perspective=perspective)
     return template_subroutines, template_functions
   
   def _parsePrograms(self, dbPrograms, perspective):
@@ -349,14 +350,16 @@ class HTMLDocMaker(object):
                                             dbClass.name, original))
   
   def _templateModulesForFile(self, dbFile):
+    perspective = self._perspectiveForFile(dbFile)
     dbmodules = dbFile.modules
     template_modules = [{"caption":dbmodule.name, "doc":self._fshandler.moduleDocForName(dbmodule.name,
-                           perspective=self._fshandler.FROM_FILE_FOLDER)} for dbmodule in dbmodules]
+                           perspective=perspective)} for dbmodule in dbmodules]
     return template_modules
   
   def _templateDependenciesForFile(self, dbFile):
+    perspective = self._perspectiveForFile(dbFile)
     dbdependencies = dbFile.dependencies
-    template_dependencies = self._parseDependencies(dbdependencies, perspective=self._fshandler.FROM_FILE_FOLDER)
+    template_dependencies = self._parseDependencies(dbdependencies, perspective=perspective)
     return template_dependencies
   
   def _parseDependencies(self, dbDependencies, perspective): 
@@ -418,6 +421,14 @@ class HTMLDocMaker(object):
       class_tree = self._treeForClass(cls, perspective, currentTree=None)
       trees.append(class_tree)
     return trees
+  
+  def _perspectiveForFile(self, dbFile):
+    # dbFile is a File or ProgramFile. this method fixes the perspective for both
+    if isinstance(dbFile, ProgramFile): # ProgramFile must be tested first, since it's a subclass of File
+      perspective = FileSystemHandler.FROM_PROGRAM_FOLDER
+    elif isinstance(dbFile, File):
+      perspective = FileSystemHandler.FROM_FILE_FOLDER
+    return perspective
 
 class NodeData(object):
   def __init__(self, link, caption, originalNode=False):
