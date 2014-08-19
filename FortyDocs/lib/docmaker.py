@@ -19,11 +19,12 @@ class HTMLDocMaker(object):
   
   ARGUMENT_CLASS_EXTRACTOR_REGEX = re.compile("\w+\((?P<class>\w+)\)|\w+") # also match for things like 'integer'
   
-  def __init__(self, destinationDirectory):
+  def __init__(self, destinationDirectory, documentationTitle="Fortran Documentation Index"):
     if not os.path.exists(DATABASE_FILE):
       print("Database file not found. Please run the parse phase <dbmaker.py> first. Exiting")
       sys.exit(1)
     self._fshandler = FileSystemHandler(destinationDirectory)
+    env.globals["documentation_title"] = documentationTitle
   
   def makeDocs(self):
     self._fshandler.copyAssets()
@@ -76,7 +77,7 @@ class HTMLDocMaker(object):
     for dbprogram in dbprograms:
       template_args = self._templateArgsForFile(dbprogram) # a ProgramFile is the same as File. Difference in template
       if NOISY:
-        print("Rendering template programs/{}".format(self._fshandler.makeHtml(dbprogram.name)))
+        print("Rendering template programs/{}".format(self._fshandler.htmlNameForPath(dbprogram.name)))
       program_template = env.get_template("program.html")
       out_program_name = self._fshandler.getSaveProgramName(dbprogram.name)
       open(out_program_name, 'w').write(
@@ -273,12 +274,15 @@ class HTMLDocMaker(object):
       template_modules.append(args)
     return template_modules
   
-  def _parseArguments(self, dbArguments, perspective):
+  def _parseArguments(self, dbSubroutine, perspective):
     arg_class_regex = self.ARGUMENT_CLASS_EXTRACTOR_REGEX
     template_arguments = []
-    for dbarg in dbArguments:
+    dbarguments = dbSubroutine.arguments
+    result_name = dbSubroutine.result_name
+    for dbarg in dbarguments:
       argument_caption = dbarg.name
       argument_comment = dbarg.comment
+      extras = dbarg.extras
       # try to find the class of the argument, if any
       argclass_match = arg_class_regex.match(dbarg.type)
       if argclass_match:
@@ -295,8 +299,13 @@ class HTMLDocMaker(object):
         # use the type as is
         class_doc = None
         class_caption = dbarg.type
+      if result_name and dbarg.name == result_name:
+        is_return = True
+      else:
+        is_return = False
       template_arguments.append({"caption":argument_caption, "comment":argument_comment,
-                                 "class_doc":class_doc, "class_caption":class_caption})
+                                 "class_doc":class_doc, "class_caption":class_caption,
+                                 "extras":extras, "is_return":is_return})
     return template_arguments
         
   def _parseSubroutines(self, dbSubroutines, perspective):
@@ -305,11 +314,9 @@ class HTMLDocMaker(object):
     for dbsub in dbSubroutines:
       subroutine_caption = "{}({})".format(dbsub.name, 
                                                 ", ".join([arg.name for arg in dbsub.arguments]))
-      if dbsub.alias:
-        subroutine_caption += " => {}".format(dbsub.alias)
       subroutine_comment = dbsub.comment
       # parse arguments and make links to classes where available
-      template_arguments = self._parseArguments(dbsub.arguments, perspective)
+      template_arguments = self._parseArguments(dbsub, perspective)
       args = {"caption":subroutine_caption, "comment":subroutine_comment,
                                    "arguments":template_arguments}
       if dbsub.category.lower() == "subroutine":
@@ -317,9 +324,25 @@ class HTMLDocMaker(object):
       elif dbsub.category.lower() == "function":
         template_functions.append(args)
     return template_subroutines, template_functions
- 
-  def _treeForClass(self, dbClass, perspective, currentTree=None, originalId=0, parentIdentifier="root"):
-    # create a tree with dbClass at it's bottom
+  
+  def _treeBranchForClass(self, dbClass, perspective):
+    # create an inheritance branch by traveling up from dbClass
+    originalId = dbClass.id
+    currentTree = treelib.Tree()
+    currentTree.create_node("Root", "root")
+    self._createTreeNode(currentTree, dbClass, perspective, "root", originalId)
+    parent_id = dbClass.parent_id
+    while parent_id is not None:
+      prev_parent_id = dbClass.name
+      dbClass = session.query(Class).filter(Class.id==parent_id).first()
+      if dbClass:
+        self._createTreeNode(currentTree, dbClass, perspective, prev_parent_id, originalId)
+        parent_id = dbClass.parent_id
+      else: break
+    return currentTree
+  
+  def _fullTreeForClass(self, dbClass, perspective, currentTree=None, originalId=-1, parentIdentifier="root"):
+    # create a the full inheritance tree for dbClass
     if currentTree is None:
       originalId = dbClass.id
       # climb up to the top parent first, then create a tree from there
@@ -337,7 +360,7 @@ class HTMLDocMaker(object):
     dbchildren = session.query(Class).filter(Class.parent_id==dbClass.id).all()
     if dbchildren:
       for dbchild in dbchildren: # when there are no more children, it's over
-        self._treeForClass(dbchild, perspective, currentTree, originalId, parentIdentifier)
+        self._fullTreeForClass(dbchild, perspective, currentTree, originalId, parentIdentifier)
     return currentTree
   
   def _createTreeNode(self, currentTree, dbClass, perspective, parentIdentifier, originalId):
@@ -418,7 +441,7 @@ class HTMLDocMaker(object):
   def _parseTrees(self, dbClasses, perspective):
     trees = []
     for cls in dbClasses:
-      class_tree = self._treeForClass(cls, perspective, currentTree=None)
+      class_tree = self._treeBranchForClass(cls, perspective)
       trees.append(class_tree)
     return trees
   

@@ -49,7 +49,7 @@ class Parser(object):
     return string
   
   @classmethod
-  def removeRubbish(cls, string):
+  def removeExtras(cls, string):
     # remove stray comments and IMPlICIT NONE
     string = cls.removeStrayComments(string)
     lines = string.split("\n")
@@ -101,7 +101,7 @@ class ProgramParser(FileParser):
   
 class ModuleParser(Parser):
   
-  MODULE_EXTRACTOR_REGEX = re.compile(r"^\s*(?!!)module\s*(?P<module_name>.*)\s*$(?P<module_content>.*)end\s*module\s*(?P=module_name)",
+  MODULE_EXTRACTOR_REGEX = re.compile(r"^\s*(?!!)module\s*(?P<module_name>\w+)\s*$(?P<module_content>.*)end\s*module\s*(?P=module_name)?",
                                        re.MULTILINE | re.DOTALL | re.IGNORECASE)
   
   class Module(object):
@@ -172,7 +172,7 @@ class DependencyParser(Parser):
   
 class ClassParser(Parser):
   
-  CLASS_REGEX = re.compile(r"\s*\btype\b\s*(,\s*(?P<access_mod>abstract|private|public))?" +\
+  CLASS_REGEX = re.compile(r"^\s*(?!!)\btype\b\s*(,\s*(?P<access_mod>abstract|private|public))?" +\
                            r"(\s*,\s*extends\s*\(\s*(?P<parent>\w+)\s*\))?\s*(::)?\s*(?P<class_name>\w+)\b" +\
                            r"(?P<class_body>.*?)end\s*type\s*(?P=class_name)?", 
                            re.MULTILINE | re.DOTALL | re.IGNORECASE)
@@ -215,11 +215,12 @@ class ArgumentParser(Parser):
   I consider "allocatable, dimension(:)" as [extras] when parsing.
   """
   # should match with here: http://en.wikibooks.org/wiki/Fortran/Fortran_variables
+  # this matches much more than variables, like language constructs, but not easy way out
   VARIABLE_REGEX = re.compile(r"(?P<type_name_args>\w+\s*(\(\s*[\w\.=\*]+\s*\))?)\s*" +\
                               r"(,\s*(?P<extra>(\w+(\(.*?\))?)))*" +\
-                              r"\s*::\s*" +\
+                              r"\s*(::)?\s*" +\
                               r"(?P<var_names>(\w+(\s*,\s*)?)+)" +\
-                              r"\s*(!+(?P<variable_comment>.*))?$")
+                              r"\s*(!+(?P<variable_comment>.*))?")
                              
   class Argument(object):
     def __init__(self, name, type, extras, comment):
@@ -275,8 +276,9 @@ class SubroutineParser(Parser):
   
   SUBROUTINE_REGEX = r"^\s*(?!!)(recursive|logical|integer|real\(.*\)|complex\(.*\)|type\(.*\))?\s*" +\
                      r"(?P<category>subroutine|function)\s*(?P<subname>[\w\d\_]+)\s*" +\
-                     r"(\((?P<argnames>([\w\d\_](\s*,\s*)?)+)\))?"
-                     # yes, in Fortran, they argument list is^^ optional
+                     r"\((?P<argnames>([\w\d\_](\s*,\s*)?)+)\)\s*" +\
+                     r"(result\((?P<result_name>(\w+))\))?"
+                     
   SUBROUTINE_ALIAS_REGEX = re.compile(r"procedure\s*::\s*(?P<subname>\w+)\s*=>\s*(?P<alias>\w+)\s*",
                                       re.IGNORECASE)
   # the extractor matches everything after the argument list into the subbody
@@ -284,13 +286,14 @@ class SubroutineParser(Parser):
                                           re.IGNORECASE | re.DOTALL | re.MULTILINE)
   
   class Subroutine(object):
-    def __init__(self, category, name, alias, arguments, comment):
+    def __init__(self, category, name, alias, arguments, comment, resultName):
       # category means either a 'function' or 'subroutine'
       self.category = category
       self.name = name 
       self.alias = alias
       self.arguments = arguments
       self.comment = comment
+      self.result_name = resultName
       
   @classmethod
   def parse(cls, string):
@@ -312,7 +315,7 @@ class SubroutineParser(Parser):
       subname = result_dict["subname"]
       subbody = result_dict["subbody"]
       subcomment, rest = cls.parseComments(subbody)
-      rest = cls.removeRubbish(rest)
+      rest = cls.removeExtras(rest)
       rest = DependencyParser.removeDependencies(rest)
       subalias = ''
       if subname in found_aliases: # procedure/subroutine/function has an alias, assign it 
@@ -321,13 +324,19 @@ class SubroutineParser(Parser):
             subname, subalias = match.group("subname"), match.group("alias")
       category = result_dict["category"]
       argnames = result_dict["argnames"]
-      if argnames: # arguments are optional
+      result_name = result_dict["result_name"]
+      if argnames:
         argnames = splitter.split(argnames)
+        if result_name:
+          result_name = result_name.strip() # in case of surrounding spaces inside braces
         parsed_arguments = ArgumentParser.parse(rest) # this could also parse other things like subroutine variables
         for argument in parsed_arguments:
           if argument.name in argnames: # this filters subroutine variables out
             actual_args.append(argument)
-      subroutines.append(cls.Subroutine(category, subname, subalias, actual_args, subcomment))
+            argnames.remove(argument.name)
+          elif argument.name == result_name:
+            actual_args.append(argument)
+      subroutines.append(cls.Subroutine(category, subname, subalias, actual_args, subcomment, result_name))
     return subroutines
   
 class IndependentSubroutineParser(SubroutineParser):

@@ -112,14 +112,15 @@ class Class(DecBase):
     return "<Class name={} id={} at {:0x}>".format(self.name, self.id, id(self))
   
 class Subroutine(DecBase):
-  """A general subroutine. Doesn't belong to a class nor a program"""
+  """A general subroutine or function. Doesn't belong to a class nor a program"""
   __tablename__ = "subroutine"
   
   id = Column(Integer, primary_key=True)
   name = Column(String)
   alias = Column(String)
   comment = Column(String)
-  category = Column(String)
+  category = Column(String) # subroutine or function, as parsed from the source
+  result_name = Column(String) # the result name is fetched here. It's type information is included with the arguments
   arguments = relationship("SubroutineArgument", backref="subroutine")
   
   type = Column(String)

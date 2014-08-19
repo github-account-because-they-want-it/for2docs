@@ -67,15 +67,15 @@ class ModelFiller(object):
   def _extractSubroutines(self, subroutineList, dbOwner):
     # dbOwner should be a valid database Module, Class or Program, to which the subroutines belong
     if isinstance(dbOwner, (ProgramFile, File)):
-        SubroutineClass = FileSubroutine
+        SubroutineSubclass = FileSubroutine
     elif isinstance(dbOwner, Module):
-      SubroutineClass = ModuleSubroutine
+      SubroutineSubclass = ModuleSubroutine
     elif isinstance(dbOwner, Class):
-        SubroutineClass = ClassSubroutine
+        SubroutineSubclass = ClassSubroutine
     res = []
     for subroutine in subroutineList:
-      dbsubroutine = SubroutineClass(name=subroutine.name, alias=subroutine.alias, comment=subroutine.comment,
-                            category=subroutine.category)
+      dbsubroutine = SubroutineSubclass(name=subroutine.name, alias=subroutine.alias, comment=subroutine.comment,
+                            category=subroutine.category, result_name=subroutine.result_name)
       session.add(dbsubroutine)
       session.commit()
       arguments=self._extractArguments(subroutine.arguments, SubroutineArgument, dbsubroutine)
@@ -84,8 +84,13 @@ class ModelFiller(object):
     return res
   
   def _extractClass(self, cls, dbModule):
-    dbcls = Class(name=cls.name, access_modifier=cls.access_modifier, module_id=dbModule.id,
-                  comment=cls.comment)
+    # find the class in the database first. Maybe it was found as a parent before it's declaration was found
+    dbcls = session.query(Class).filter(Class.name==cls.name).first()
+    if not dbcls:
+      dbcls = Class(name=cls.name)
+    dbcls.access_modifier = cls.access_modifier
+    dbcls.module_id = dbModule.id
+    dbcls.comment = cls.comment
     dbcls.subroutines = self._extractSubroutines(cls.subroutines, dbcls)
     session.add(dbcls)
     session.commit()
@@ -139,7 +144,6 @@ class ModelFiller(object):
   def _extractDependencies(self, parsedDependencies):
     # ensures that old dependencies are retained and new ones created as necessary
     # (unique constraint is not enforced by sqlalchemy)
-    # how to know that a dependency belongs to a certain module.
     dependencies = []
     for dep in parsedDependencies:
       existing_dependency = session.query(Dependency).filter(Dependency.name==dep).first()

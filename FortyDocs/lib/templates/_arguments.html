@@ -3,12 +3,22 @@
 {% if loop.first %}
 <ul class="list-unstyled arguments collapse">
 {% endif %}
-  <li>
-  {% if argument.class_doc %}
-    <a href="{{ argument.class_doc|default('#', true) }}">{{ argument.class_caption }}</a> 
-    :: {{ argument.caption }}
+  {% if argument.is_return %}
+    <li class="return"> 
+    {% if argument.class_doc %}
+      <a href="{{ argument.class_doc }}"><b>{{ argument.class_caption }}&nbsp;{{ argument.extras|default('', true) }}</b></a>
+      &nbsp;:: {{ argument.caption }}
+    {% else %}
+      {{ argument.caption }}&nbsp;{{ argument.extras|default('', true) }}:: {{ argument.class_caption }}
+    {% endif %}
   {% else %}
-    {{ argument.caption }} :: {{ argument.class_caption }}
+    <li>
+    {% if argument.class_doc %}
+      <a href="{{ argument.class_doc }}"><b>{{ argument.class_caption }}&nbsp;{{ argument.extras|default('', true) }}</b></a> 
+      &nbsp;:: {{ argument.caption }}
+    {% else %}
+      {{ argument.caption }}&nbsp;{{ argument.extras|default('', true) }}:: {{ argument.class_caption }}
+    {% endif %}
   {% endif %}
   <em>{{ argument.comment|default('', true) }}</em></li>
 {% if loop.last %}

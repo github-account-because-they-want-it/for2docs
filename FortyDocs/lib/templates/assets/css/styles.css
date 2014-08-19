@@ -25,3 +25,7 @@ ul.arguments {
 ul.subroutines blockquote, ul.functions blockquote {
 	font-size: 11px;
 }
+ul.arguments li.return {
+	color: #800080;
+	font-weight: bold;
+}
