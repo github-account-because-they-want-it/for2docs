@@ -276,16 +276,14 @@ class ClassArgumentParser(ArgumentParser):
 class SubroutineParser(Parser):
   """Parses subroutines"""
   
-  SUBROUTINE_REGEX =  r"^\s*(?!!)(recursive|logical|integer|real\(.*\)|complex\(.*\)|type\(.*\))?\s*" +\
-                      r"(?P<category>subroutine|function)\s*(?P<subname>[\w\d\_]+)\s*" +\
-                      r"\((?P<argnames>([\w\d\_](\s*,\s*)?)+)\)\s*" +\
-                      r"(result\((?P<result_name>(\w+))\))?"
+  SUBROUTINE_REGEX =  re.compile(r"^\s*(?!!)(recursive|logical|integer|real\(.*\)|complex\(.*\)|type\(.*\))?" +\
+                      r"\s*(?P<category>subroutine|function)\s*(?P<subname>[\w\d\_]+)\s*" +\
+                      r"\((?P<argnames>([\w\d\_](\s*,\s*)?)+)\)\s*(result\((?P<result_name>(\w+))\))?" +\
+                      r"(?P<subbody>.*?end\s*(?P=category)\s*(?P=subname)?)",
+                      re.IGNORECASE | re.DOTALL | re.MULTILINE)
                      
   SUBROUTINE_ALIAS_REGEX = re.compile(r"procedure\s*::\s*(?P<subname>\w+)\s*=>\s*(?P<alias>\w+)\s*",
                                       re.IGNORECASE)
-  # the extractor matches everything after the argument list into the subbody
-  SUBROUTINE_EXTRACTOR_REGEX = re.compile(SUBROUTINE_REGEX + r"(?P<subbody>.*end\s*(?P=category)\s*(?P=subname)?)",
-                                          re.IGNORECASE | re.DOTALL | re.MULTILINE)
   
   class Subroutine(object):
     def __init__(self, category, name, alias, arguments, comment, resultName):
@@ -304,7 +302,7 @@ class SubroutineParser(Parser):
       Could be a module string or program string
     """
     # separate subroutines from each other, so the VariableParser can work correctly
-    subroutine_matcher = cls.SUBROUTINE_EXTRACTOR_REGEX
+    subroutine_matcher = cls.SUBROUTINE_REGEX
     alias_matcher = cls.SUBROUTINE_ALIAS_REGEX
     alias_matches = list(alias_matcher.finditer(string))
     found_aliases = [match.group("alias") for match in alias_matches]
@@ -361,9 +359,17 @@ class ModuleSubroutineParser(SubroutineParser):
   
   @classmethod
   def parse(cls, moduleString):
-    clsrex = ClassParser.CLASS_REGEX
-    no_class_string = clsrex.sub('', moduleString)
-    return SubroutineParser.parse(no_class_string)
+    all_subroutines = SubroutineParser.parse(moduleString)
+    # keep only subroutines which don't have 'this' in it's argument list
+    module_only_subroutines = []
+    for subroutine in all_subroutines:
+      arguments = subroutine.arguments
+      for argument in arguments:
+        if argument.name == "this":
+          break
+      else:
+        module_only_subroutines.append(subroutine)
+    return module_only_subroutines
   
 class ClassSubroutineParser(SubroutineParser):
   """
