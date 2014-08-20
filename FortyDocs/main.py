@@ -40,16 +40,20 @@ if __name__ == "__main__":
       config_parser.read(config_file_name)
       source_directory = config_parser.get("Directories", "source_directory")
       destination_directory = config_parser.get("Directories", "destination_directory")
-      main(source_directory, destination_directory)
+      documentation_title = config_parser.get("Other", "documentation_title")
+      main(source_directory, destination_directory, documentation_title)
     else:
       parser.print_help()
   else:
     source_directory = args.source_directory
     destination_directory = args.destination_directory
+    documentation_title = args.doc_title
     config_parser = ConfigParser.ConfigParser()
     config_parser.add_section("Directories")
     config_parser.set("Directories", "source_directory", source_directory)
     config_parser.set("Directories", "destination_directory", destination_directory)
+    config_parser.add_section("Other")
+    config_parser.set("Other", "documentation_title", documentation_title)
     with open(config_file_name, "wb") as conf:
       config_parser.write(conf)
     main(source_directory, destination_directory, args.doc_title)

@@ -6,7 +6,7 @@ import os
 from sqlalchemy.orm.exc import NoResultFound
 from source_model import (File, ProgramFile, ClassVariable, SubroutineArgument, Class,
                               ClassSubroutine, Dependency, Module, FileSubroutine, 
-                              session, ModuleSubroutine, createNewDatabase)
+                              session, ModuleSubroutine, Interface, createNewDatabase)
 from parsers import ProgramParser, FileParser
 
 NOISY = True
@@ -136,6 +136,7 @@ class ModelFiller(object):
       dbmodule.dependencies = self._extractDependencies(module.dependencies)
       dbmodule.classes = self._extractClasses(module.classes, dbmodule)
       dbmodule.subroutines = self._extractSubroutines(module.subroutines, dbmodule)
+      dbmodule.interfaces = self._extractInterfaces(module.interfaces, dbmodule)
       for subroutine in dbmodule.subroutines:
         subroutine.module_id = dbmodule.id
       res.append(dbmodule)
@@ -176,6 +177,14 @@ class ModelFiller(object):
     dbfile.subroutines = dbsubroutines
     session.commit()
     return dbfile, parsed_file
+  
+  def _extractInterfaces(self, interfaceList, dbModule):
+    dbinterfaces = []
+    for interface in interfaceList:
+      dbinterface = Interface(name=interface.name, procedure_names=','.join(interface.procedure_list))
+      dbinterface.module_id = dbModule.id
+      dbinterfaces.append(dbinterface)
+    return dbinterfaces
 
 def startParse(source):
   filler = ModelFiller(source)

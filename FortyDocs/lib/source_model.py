@@ -71,6 +71,17 @@ class Dependency(DecBase):
   def __repr__(self):
     return u"<Dependency name={} id={} at {:0x}>".format(self.name, self.id, id(self))
   
+class Interface(DecBase):
+  """Belong to modules"""
+  __tablename__ = "inteface"
+  
+  id = Column(Integer, primary_key=True)
+  name = Column(String)
+  procedure_names = Column(String) # comma-separated list of procedure names. Could be complicated by linking to subroutine names. Ain't worth it
+  module_id = Column(Integer, ForeignKey("module.id"))
+  
+  def __repr__(self):
+    return "<Interface name={} at {:0x}>".format(self.name, id(self))
  
 class Module(DecBase):
   """Represents a Fortran module"""
@@ -85,6 +96,7 @@ class Module(DecBase):
   dependencies = relationship("Dependency", secondary=module_dep_assoc, backref="modules")  
   classes = relationship("Class", backref="module") # a module can have classes
   subroutines = relationship("ModuleSubroutine", backref="module")
+  interfaces = relationship("Interface", backref="module")
   
   __mapper_args__ = {"polymorphic_identity":"module"}
   

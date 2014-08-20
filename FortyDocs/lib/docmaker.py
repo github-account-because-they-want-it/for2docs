@@ -45,6 +45,7 @@ class HTMLDocMaker(object):
     assets_directory = self._fshandler.assetsDirectory(FileSystemHandler.FROM_FILE_FOLDER)
     home_index = self._fshandler.homeIndex(FileSystemHandler.FROM_FILE_FOLDER)
     class_index = self._fshandler.classIndex(FileSystemHandler.FROM_FILE_FOLDER)
+    file_template = env.get_template("file.html")
     dbfiles = session.query(File).all()
     # sort here because it won't help t use order_by on directories
     dbfiles.sort(key=lambda f : self._fshandler.pureFileName(f.name).lower())
@@ -53,7 +54,6 @@ class HTMLDocMaker(object):
       trees = self._treesForFile(dbf)
       if NOISY:
         print("Rendering template files/{}".format(self._fshandler.htmlNameForPath(dbf.name)))
-      file_template = env.get_template("file.html")
       out_file_name = self._fshandler.getSaveFileName(dbf.name)
       open(out_file_name, "w").write(
         file_template.render(assets_directory=assets_directory,
@@ -72,13 +72,13 @@ class HTMLDocMaker(object):
     assets_directory = self._fshandler.assetsDirectory(FileSystemHandler.FROM_PROGRAM_FOLDER)
     home_index = self._fshandler.homeIndex(FileSystemHandler.FROM_PROGRAM_FOLDER)
     class_index = self._fshandler.classIndex(FileSystemHandler.FROM_PROGRAM_FOLDER)
+    program_template = env.get_template("program.html")
     dbprograms = session.query(ProgramFile).all()
     dbprograms = sorted(dbprograms, key=lambda program : self._fshandler.pureFileName(program.name).lower())
     for dbprogram in dbprograms:
       template_args = self._templateArgsForFile(dbprogram) # a ProgramFile is the same as File. Difference in template
       if NOISY:
         print("Rendering template programs/{}".format(self._fshandler.htmlNameForPath(dbprogram.name)))
-      program_template = env.get_template("program.html")
       out_program_name = self._fshandler.getSaveProgramName(dbprogram.name)
       open(out_program_name, 'w').write(
         program_template.render(assets_directory=assets_directory,
@@ -96,6 +96,7 @@ class HTMLDocMaker(object):
     assets_directory = self._fshandler.assetsDirectory(FileSystemHandler.FROM_MODULE_FOLDER)
     home_index = self._fshandler.homeIndex(FileSystemHandler.FROM_MODULE_FOLDER)
     class_index = self._fshandler.classIndex(FileSystemHandler.FROM_MODULE_FOLDER)
+    module_template = env.get_template("module.html")
     dbmodules = session.query(Module).order_by(Module.name).all()
     for dbmodule in dbmodules:
       module_caption = dbmodule.name
@@ -111,10 +112,11 @@ class HTMLDocMaker(object):
       module_dbsubroutines = dbmodule.subroutines
       template_subroutines, template_functions = self._parseSubroutines(module_dbsubroutines, 
                                                                         perspective=FileSystemHandler.FROM_MODULE_FOLDER)
+      module_interfaces = dbmodule.interfaces
+      template_interfaces = self._parseInterfaces(module_interfaces)
       trees = self._parseTrees(dbmodule.classes, perspective=FileSystemHandler.FROM_MODULE_FOLDER)
       if NOISY:
         print("Rendering template modules/{}".format(self._fshandler.makeHtml(dbmodule.name)))
-      module_template = env.get_template("module.html")
       output_module_file = self._fshandler.getSaveModuleName(dbmodule.name)
       open(output_module_file, 'w').write(
         module_template.render(assets_directory=assets_directory,
@@ -124,6 +126,7 @@ class HTMLDocMaker(object):
                                module_file_doc=module_file_doc,
                                module_file_caption=module_file_caption,
                                module_comment=module_comment,
+                               interfaces=template_interfaces,
                                classes=template_classes,
                                dependencies=template_dependencies,
                                subroutines=template_subroutines,
@@ -135,6 +138,7 @@ class HTMLDocMaker(object):
     assets_directory = self._fshandler.assetsDirectory(FileSystemHandler.FROM_CLASS_FOLDER)
     home_index = self._fshandler.homeIndex(FileSystemHandler.FROM_CLASS_FOLDER)
     class_index = self._fshandler.classIndex(FileSystemHandler.FROM_CLASS_FOLDER)
+    class_template = env.get_template("class.html")
     dbclasses = session.query(Class).order_by(Class.name).all()
     for dbclass in dbclasses:
       class_name = dbclass.name
@@ -168,7 +172,6 @@ class HTMLDocMaker(object):
       class_output_file = self._fshandler.getSaveClassName(dbclass.name)
       if NOISY:
         print("Rendering template classes/{}".format(self._fshandler.makeHtml(dbclass.name)))
-      class_template = env.get_template("class.html")
       open(class_output_file, 'w').write(
         class_template.render(assets_directory=assets_directory,
                               home_index=home_index,
@@ -325,21 +328,33 @@ class HTMLDocMaker(object):
         template_functions.append(args)
     return template_subroutines, template_functions
   
+  def _parseInterfaces(self, dbInterfaces):
+    template_interfaces = []
+    for dbinterface in dbInterfaces:
+      interface_name = dbinterface.name
+      procedure_names = dbinterface.procedure_names.split(',')
+      template_interfaces.append({"caption":interface_name,
+                                  "procedures":procedure_names})
+    return template_interfaces
+  
   def _treeBranchForClass(self, dbClass, perspective):
     # create an inheritance branch by traveling up from dbClass
     originalId = dbClass.id
     currentTree = treelib.Tree()
     currentTree.create_node("Root", "root")
-    self._createTreeNode(currentTree, dbClass, perspective, "root", originalId)
+    # climb up to the top-most parent 
     parent_id = dbClass.parent_id
+    branch = [dbClass]
+    parent_ids = ["root"]
     while parent_id is not None:
-      prev_parent_id = dbClass.name
-      dbClass = session.query(Class).filter(Class.id==parent_id).first()
-      if dbClass:
-        self._createTreeNode(currentTree, dbClass, perspective, prev_parent_id, originalId)
-        parent_id = dbClass.parent_id
-      else: break
-    return currentTree
+      dbclass = session.query(Class).filter(Class.id==parent_id).first()
+      branch.insert(0, dbclass) # the branch should start from the top-most parent
+      parent_ids.insert(1, dbclass.name) # the ids start at root
+      parent_id = dbclass.parent_id
+    for (cls, parent_id) in zip(branch, parent_ids):
+      self._createTreeNode(currentTree, cls, perspective, parent_id, originalId)
+      
+    return currentTree, branch # include the branch so you know which classes were "treed"
   
   def _fullTreeForClass(self, dbClass, perspective, currentTree=None, originalId=-1, parentIdentifier="root"):
     # create a the full inheritance tree for dbClass
@@ -440,9 +455,12 @@ class HTMLDocMaker(object):
   
   def _parseTrees(self, dbClasses, perspective):
     trees = []
+    already_included_classes = set()
     for cls in dbClasses:
-      class_tree = self._treeBranchForClass(cls, perspective)
-      trees.append(class_tree)
+      if cls not in already_included_classes:
+        class_tree, included_classes = self._treeBranchForClass(cls, perspective)
+        trees.append(class_tree)
+        already_included_classes.update(included_classes)
     return trees
   
   def _perspectiveForFile(self, dbFile):

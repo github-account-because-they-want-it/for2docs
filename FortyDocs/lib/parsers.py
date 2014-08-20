@@ -105,12 +105,13 @@ class ModuleParser(Parser):
                                        re.MULTILINE | re.DOTALL | re.IGNORECASE)
   
   class Module(object):
-    def __init__(self, name, comment, classes, dependencies, subroutines):
+    def __init__(self, name, comment, classes, dependencies, subroutines, interfaces):
       self.name = name
       self.comment = comment
       self.classes = classes
       self.dependencies = dependencies
       self.subroutines = subroutines
+      self.interfaces = interfaces
       
   @classmethod
   def parse(cls, fileString):
@@ -127,8 +128,9 @@ class ModuleParser(Parser):
       module_comment, rest = cls.parseComments(module_content)
       classes = ClassParser.parse(rest)
       dependecies = DependencyParser.parse(rest)
-      subroutines = SubroutineParser.parse(rest)
-      modules.append(cls.Module(module_name, module_comment, classes, dependecies, subroutines))
+      subroutines = ModuleSubroutineParser.parse(rest)
+      interfaces = InterfaceParser.parse(rest)
+      modules.append(cls.Module(module_name, module_comment, classes, dependecies, subroutines, interfaces))
     return modules
   
 class DependencyParser(Parser):
@@ -215,7 +217,7 @@ class ArgumentParser(Parser):
   I consider "allocatable, dimension(:)" as [extras] when parsing.
   """
   # should match with here: http://en.wikibooks.org/wiki/Fortran/Fortran_variables
-  # this matches much more than variables, like language constructs, but not easy way out
+  # this matches much more than variables, like language constructs, but no easy way out
   VARIABLE_REGEX = re.compile(r"(?P<type_name_args>\w+\s*(\(\s*[\w\.=\*]+\s*\))?)\s*" +\
                               r"(,\s*(?P<extra>(\w+(\(.*?\))?)))*" +\
                               r"\s*(::)?\s*" +\
@@ -236,7 +238,7 @@ class ArgumentParser(Parser):
     variable_matcher = cls.VARIABLE_REGEX
     splitter_matcher = cls.SPLITTER_REGEX
     arguments = [] # could also be variables
-    # perform a line ny line search. should be faster
+    # perform a line search. should be faster
     for line in string.split("\n"):
       line = line.strip()
       match = variable_matcher.match(line)
@@ -274,15 +276,15 @@ class ClassArgumentParser(ArgumentParser):
 class SubroutineParser(Parser):
   """Parses subroutines"""
   
-  SUBROUTINE_REGEX = r"^\s*(?!!)(recursive|logical|integer|real\(.*\)|complex\(.*\)|type\(.*\))?\s*" +\
-                     r"(?P<category>subroutine|function)\s*(?P<subname>[\w\d\_]+)\s*" +\
-                     r"\((?P<argnames>([\w\d\_](\s*,\s*)?)+)\)\s*" +\
-                     r"(result\((?P<result_name>(\w+))\))?"
+  SUBROUTINE_REGEX =  r"^\s*(?!!)(recursive|logical|integer|real\(.*\)|complex\(.*\)|type\(.*\))?\s*" +\
+                      r"(?P<category>subroutine|function)\s*(?P<subname>[\w\d\_]+)\s*" +\
+                      r"\((?P<argnames>([\w\d\_](\s*,\s*)?)+)\)\s*" +\
+                      r"(result\((?P<result_name>(\w+))\))?"
                      
   SUBROUTINE_ALIAS_REGEX = re.compile(r"procedure\s*::\s*(?P<subname>\w+)\s*=>\s*(?P<alias>\w+)\s*",
                                       re.IGNORECASE)
   # the extractor matches everything after the argument list into the subbody
-  SUBROUTINE_EXTRACTOR_REGEX = re.compile(SUBROUTINE_REGEX + r"(?P<subbody>.*end\s*(?P=category)\s*(?P=subname))",
+  SUBROUTINE_EXTRACTOR_REGEX = re.compile(SUBROUTINE_REGEX + r"(?P<subbody>.*end\s*(?P=category)\s*(?P=subname)?)",
                                           re.IGNORECASE | re.DOTALL | re.MULTILINE)
   
   class Subroutine(object):
@@ -352,6 +354,17 @@ class IndependentSubroutineParser(SubroutineParser):
     no_class_string = class_matcher.sub('', no_mod_string)
     return SubroutineParser.parse(no_class_string)
   
+class ModuleSubroutineParser(SubroutineParser):
+  """
+  Eliminates classes before delegating to SubroutineParser
+  """
+  
+  @classmethod
+  def parse(cls, moduleString):
+    clsrex = ClassParser.CLASS_REGEX
+    no_class_string = clsrex.sub('', moduleString)
+    return SubroutineParser.parse(no_class_string)
+  
 class ClassSubroutineParser(SubroutineParser):
   """
   Passes the whole string to SubroutineParser then picks up only the subroutines that belong
@@ -377,3 +390,31 @@ class ClassSubroutineParser(SubroutineParser):
             file_subroutine.name == procedure_alias:
           all_class_subroutines.append(file_subroutine)
     return all_class_subroutines
+  
+class InterfaceParser(Parser):
+  
+  INTEFACE_REGEX = re.compile(r"\s*(?!!)interface\s*(?P<interface_name>\w+)\s*module\s*procedure\s*" +\
+                              r"(?P<procedure_names>(\w+(\s*,\s*)?)+)\s*end\s*interface\s*(?P=interface_name)?",
+                              re.IGNORECASE)
+  
+  class Interface(object):
+    def __init__(self, name, procedureList):
+      self.name = name
+      self.procedure_list = procedureList
+  
+  @classmethod
+  def parse(cls, string):
+    # parse the procedure list as strings
+    irex = cls.INTEFACE_REGEX
+    comma_splitter_rex = cls.SPLITTER_REGEX
+    interface_matches = irex.finditer(string)
+    interfaces = []
+    for match in interface_matches:
+      result_dict = match.groupdict()
+      interface_name = result_dict["interface_name"]
+      procedures = result_dict["procedure_names"]
+      procedure_names = []
+      if procedures:
+        procedure_names = comma_splitter_rex.split(procedures)
+      interfaces.append(cls.Interface(interface_name, procedure_names))
+    return interfaces

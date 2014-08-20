@@ -57,7 +57,7 @@
         	$(this).orgChart({container:$('.' + output_diagram_class)});
         })
     });
-    $("#fcollapser, #scollapser").click(function(event) {
+    $("#fcollapser, #scollapser, #icollapser").click(function(event) {
       event.preventDefault();
       if ($(this).attr("id") == "scollapser") {
         var $_tocollapse = $(".subroutines").find(".collapse");
@@ -65,11 +65,15 @@
       else if ($(this).attr("id") == "fcollapser"){
     	  var $_tocollapse = $(".functions").find(".collapse");
       }
-      if ($(this).text() == "Expand Arguments") {
-        $(this).html("Collapse Arguments");
+      else if ($(this).attr("id") == "icollapser") {
+    	  var $_tocollapse = $(".interfaces").find(".collapse"); 
+      }
+      var link_text = $(this).text();
+      if (link_text.indexOf("Expand") !== -1) {
+        $(this).html("Collapse" + link_text.substr(6));
       }
       else {
-        $(this).html("Expand Arguments");
+        $(this).html("Expand" + link_text.substr(8)); // Collapse is an 8-char word
       }
       $_tocollapse.collapse("toggle");
     })
