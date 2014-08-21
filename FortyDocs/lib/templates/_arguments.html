@@ -9,7 +9,7 @@
       <a href="{{ argument.class_doc }}"><b>{{ argument.class_caption }}&nbsp;{{ argument.extras|default('', true) }}</b></a>
       &nbsp;:: {{ argument.caption }}
     {% else %}
-      {{ argument.caption|e }}&nbsp;{{ argument.extras|default('', true) }}:: {{ argument.class_caption }}
+      {{ argument.caption }}&nbsp;{{ argument.extras|default('', true) }} :: {{ argument.class_caption|e }}
     {% endif %}
   {% else %}
     <li>
@@ -17,7 +17,7 @@
       <a href="{{ argument.class_doc }}"><b>{{ argument.class_caption }}&nbsp;{{ argument.extras|default('', true) }}</b></a> 
       &nbsp;:: {{ argument.caption }}
     {% else %}
-      {{ argument.caption|e }}&nbsp;{{ argument.extras|default('', true) }}:: {{ argument.class_caption }}
+      {{ argument.caption }}&nbsp;{{ argument.extras|default('', true) }} :: {{ argument.class_caption|e }}
     {% endif %}
   {% endif %}
   <em>{{ argument.comment|default('', true) }}</em></li>

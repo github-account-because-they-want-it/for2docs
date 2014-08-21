@@ -282,6 +282,7 @@ class HTMLDocMaker(object):
     template_arguments = []
     dbarguments = dbSubroutine.arguments
     result_name = dbSubroutine.result_name
+    return_found_in_arguments = False
     for dbarg in dbarguments:
       argument_caption = dbarg.name
       argument_comment = dbarg.comment
@@ -304,15 +305,16 @@ class HTMLDocMaker(object):
         class_caption = dbarg.type
       if result_name and dbarg.name == result_name:
         is_return = True
-      elif result_name: # an in-body return 
-        argument_caption = "<RETURN> :: {}".format(result_name)
-        is_return = True
+        return_found_in_arguments = True
         result_name = None
       else:
         is_return = False
       template_arguments.append({"caption":argument_caption, "comment":argument_comment,
                                  "class_doc":class_doc, "class_caption":class_caption,
                                  "extras":extras, "is_return":is_return})
+    if not return_found_in_arguments: # check a return in body
+      if result_name:
+        template_arguments.insert(0, {"caption": result_name, "class_caption":"<RETURN>", "is_return":True})
     return template_arguments
         
   def _parseSubroutines(self, dbSubroutines, perspective):
