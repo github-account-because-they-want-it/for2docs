@@ -8,4 +8,5 @@ Usage
 
   main.py -s <source_folder> -d <destination_folder> [-t <documentation_title>]
 
- 
+  Only the first time these arguments are required. If these arguments are omitted afterwards, they
+  are re-read from last_args.txt (created automatically)
