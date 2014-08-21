@@ -285,6 +285,8 @@ class SubroutineParser(Parser):
   SUBROUTINE_ALIAS_REGEX = re.compile(r"procedure\s*::\s*(?P<subname>\w+)\s*=>\s*(?P<alias>\w+)\s*",
                                       re.IGNORECASE)
   
+  FUNCTION_REURN_TEMPLATE = r"{}\s*=\s*(?P<result_name>.*)$" # should be performed on a single line
+  
   class Subroutine(object):
     def __init__(self, category, name, alias, arguments, comment, resultName):
       # category means either a 'function' or 'subroutine'
@@ -295,6 +297,16 @@ class SubroutineParser(Parser):
       self.comment = comment
       self.result_name = resultName
       
+    def __eq__(self, other):
+      # enough if they have same names
+      return self.name == other.name
+    
+    def __hash__(self):
+      name_sum = 0
+      for (i, letter) in enumerate(self.name):
+        name_sum += i * ord(letter)
+      return name_sum
+      
   @classmethod
   def parse(cls, string):
     """
@@ -304,6 +316,7 @@ class SubroutineParser(Parser):
     # separate subroutines from each other, so the VariableParser can work correctly
     subroutine_matcher = cls.SUBROUTINE_REGEX
     alias_matcher = cls.SUBROUTINE_ALIAS_REGEX
+    return_template = cls.FUNCTION_REURN_TEMPLATE
     alias_matches = list(alias_matcher.finditer(string))
     found_aliases = [match.group("alias") for match in alias_matches]
     splitter = cls.SPLITTER_REGEX
@@ -325,17 +338,24 @@ class SubroutineParser(Parser):
       category = result_dict["category"]
       argnames = result_dict["argnames"]
       result_name = result_dict["result_name"]
-      if argnames:
-        argnames = splitter.split(argnames)
-        if result_name:
-          result_name = result_name.strip() # in case of surrounding spaces inside braces
-        parsed_arguments = ArgumentParser.parse(rest) # this could also parse other things like subroutine variables
-        for argument in parsed_arguments:
-          if argument.name in argnames: # this filters subroutine variables out
-            actual_args.append(argument)
-            argnames.remove(argument.name)
-          elif argument.name == result_name:
-            actual_args.append(argument)
+      if category.lower() == "function" and result_name is None: # look for an assignment inside function body
+        return_regex = re.compile(return_template.format(subname), re.IGNORECASE)
+        for body_line in subbody.split("\n"):
+          body_line = body_line.strip()
+          return_match = return_regex.match(body_line)
+          if return_match:
+            result_name = return_match.group("result_name")
+            break
+      argnames = splitter.split(argnames)
+      if result_name:
+        result_name = result_name.strip() # in case of surrounding spaces inside braces
+      parsed_arguments = ArgumentParser.parse(rest) # this could also parse other things like subroutine variables
+      for argument in parsed_arguments:
+        if argument.name in argnames: # this filters subroutine variables out
+          actual_args.append(argument)
+          argnames.remove(argument.name)
+        elif argument.name == result_name:
+          actual_args.append(argument)
       subroutines.append(cls.Subroutine(category, subname, subalias, actual_args, subcomment, result_name))
     return subroutines
   
@@ -354,27 +374,25 @@ class IndependentSubroutineParser(SubroutineParser):
   
 class ModuleSubroutineParser(SubroutineParser):
   """
-  Eliminates classes before delegating to SubroutineParser
+  Finds module subroutines and class subroutines. Then returns the difference
   """
   
   @classmethod
   def parse(cls, moduleString):
-    all_subroutines = SubroutineParser.parse(moduleString)
-    # keep only subroutines which don't have 'this' in it's argument list
-    module_only_subroutines = []
-    for subroutine in all_subroutines:
-      arguments = subroutine.arguments
-      for argument in arguments:
-        if argument.name == "this":
-          break
-      else:
-        module_only_subroutines.append(subroutine)
+    class_matcher = ClassParser.CLASS_REGEX
+    all_subroutines = set(SubroutineParser.parse(moduleString))
+    class_bodies = [match.group("class_body") for match in class_matcher.finditer(moduleString)]
+    classes_subroutines = set()
+    for class_body in class_bodies:
+      class_subroutines = ClassSubroutineParser.parse(moduleString, class_body)
+      classes_subroutines.update(class_subroutines)
+    module_only_subroutines = all_subroutines.difference(classes_subroutines)
     return module_only_subroutines
   
 class ClassSubroutineParser(SubroutineParser):
   """
   Passes the whole string to SubroutineParser then picks up only the subroutines that belong
-  to classes
+  to the class string passed
   """
   
   PROC_REGEX = re.compile(r"procedure.*::\s*(?P<procedure_name>\w+)\s*(=>\s*(?P<procedure_alias>\w+))?", re.IGNORECASE)

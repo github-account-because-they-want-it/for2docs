@@ -195,7 +195,7 @@ class HTMLDocMaker(object):
     index_doc = self._fshandler.homeIndex(FileSystemHandler.FROM_CLASS_FOLDER)
     output_file_name = self._fshandler.getSaveClassIndexName()
     dbclasses = session.query(Class).order_by(Class.name).all()
-    trees = self._parseTrees(dbclasses, FileSystemHandler.FROM_CLASS_FOLDER)
+    trees = self._parseFullTrees(dbclasses, FileSystemHandler.FROM_CLASS_FOLDER)
     if NOISY:
       print("Rendering template classes/_index.html")
     class_template = env.get_template("class_index.html")
@@ -304,6 +304,10 @@ class HTMLDocMaker(object):
         class_caption = dbarg.type
       if result_name and dbarg.name == result_name:
         is_return = True
+      elif result_name: # an in-body return 
+        argument_caption = "<RETURN> :: {}".format(result_name)
+        is_return = True
+        result_name = None
       else:
         is_return = False
       template_arguments.append({"caption":argument_caption, "comment":argument_comment,
@@ -358,6 +362,7 @@ class HTMLDocMaker(object):
   
   def _fullTreeForClass(self, dbClass, perspective, currentTree=None, originalId=-1, parentIdentifier="root"):
     # create a the full inheritance tree for dbClass
+    included_classes = set()
     if currentTree is None:
       originalId = dbClass.id
       # climb up to the top parent first, then create a tree from there
@@ -369,14 +374,17 @@ class HTMLDocMaker(object):
       currentTree = treelib.Tree()
       currentTree.create_node("Root", "root")
       self._createTreeNode(currentTree, dbClass, perspective, "root", originalId)
+      included_classes.add(dbClass) # only the first class adds itself
     else:
       self._createTreeNode(currentTree, dbClass, perspective, parentIdentifier, originalId)
     parentIdentifier = dbClass.name 
     dbchildren = session.query(Class).filter(Class.parent_id==dbClass.id).all()
+    included_classes.update(dbchildren)
     if dbchildren:
       for dbchild in dbchildren: # when there are no more children, it's over
-        self._fullTreeForClass(dbchild, perspective, currentTree, originalId, parentIdentifier)
-    return currentTree
+        _, node_classes = self._fullTreeForClass(dbchild, perspective, currentTree, originalId, parentIdentifier)
+        included_classes.update(node_classes)
+    return currentTree, included_classes
   
   def _createTreeNode(self, currentTree, dbClass, perspective, parentIdentifier, originalId):
     if originalId == dbClass.id:
@@ -461,6 +469,17 @@ class HTMLDocMaker(object):
         class_tree, included_classes = self._treeBranchForClass(cls, perspective)
         trees.append(class_tree)
         already_included_classes.update(included_classes)
+    return trees
+  
+  def _parseFullTrees(self, dbClasses, perspective):
+    trees = []
+    already_included_classes = set()
+    for cls in dbClasses:
+      if cls not in already_included_classes:
+        class_tree, included_classes = self._fullTreeForClass(cls, perspective, currentTree=None)
+        already_included_classes.update(included_classes)
+        if len(included_classes) > 1:
+          trees.append(class_tree)
     return trees
   
   def _perspectiveForFile(self, dbFile):

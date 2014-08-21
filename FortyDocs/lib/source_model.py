@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker, relationship
 import os
 from sqlalchemy.sql.schema import Table
 
-DATABASE_FILE = os.path.join(os.path.dirname(__file__), "sourcedata.db")
+DATABASE_FILE = os.path.join(os.path.dirname(__file__), "sourcedb.db")
 engine = create_engine("sqlite:///{}".format(DATABASE_FILE), echo=False)
 Session = sessionmaker(bind=engine)
 session = Session()
@@ -119,6 +119,10 @@ class Class(DecBase):
   module_id = Column(Integer, ForeignKey("module.id"))
   subroutines = relationship("ClassSubroutine", backref="clazz") # can't use class as column name
   variables = relationship("ClassVariable", backref="clazz")
+  
+  def __eq__(self, other):
+    # used in doc maker to check classes already included for inheritance
+    return self.name == other.name
   
   def __repr__(self):
     return "<Class name={} id={} at {:0x}>".format(self.name, self.id, id(self))

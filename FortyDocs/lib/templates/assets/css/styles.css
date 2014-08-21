@@ -21,6 +21,7 @@ div.orgChart div.node.original{
 }
 ul.arguments {
 	background-color: #eaeaea;
+	padding: 8px 4px;
 }
 ul.subroutines blockquote, ul.functions blockquote {
 	font-size: 11px;
