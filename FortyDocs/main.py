@@ -13,7 +13,7 @@ def main(sourceDirectory, destinationDirectory, docTitle):
   if NOISY:
     print("Phase #1: Parsing source files into database")
     t = time.time()
-  #mf.fillModel()
+  mf.fillModel()
   if NOISY:
     print("Phase #1: Finished <parsed {:d} files in {:.2f} minutes>".format(mf.fileCount(), (time.time()-t) / 60))
     print()
