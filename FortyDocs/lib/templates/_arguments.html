@@ -14,7 +14,7 @@
   {% else %}
     <li>
     {% if argument.class_doc %}
-      <a href="{{ argument.class_doc }}"><b>{{ argument.class_caption }}&nbsp;{{ argument.extras|default('', true) }}</b></a> 
+      <a href="{{ argument.class_doc }}"><b>{{ argument.class_caption }}&nbsp;</b></a>{{ argument.extras|default('', true) }} 
       &nbsp;:: {{ argument.caption }}
     {% else %}
       {{ argument.caption }}&nbsp;{{ argument.extras|default('', true) }} :: {{ argument.class_caption|e }}

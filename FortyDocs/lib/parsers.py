@@ -23,10 +23,9 @@ class Parser(object):
     comment_lines = []
     for i, line in enumerate(lines):
       stripped = line.strip() # check for empty lines. They belong to the comments
-      if not stripped: # empty line, skip
+      if not stripped:
         comment_lines.append("\n") # preserve paragraphs ...
       else:
-        # extract the comment without leading ! and spaces
         match = comment_regex.match(stripped)
         if not match: # start of text
           break
@@ -50,11 +49,26 @@ class Parser(object):
   
   @classmethod
   def removeExtras(cls, string):
-    # remove stray comments and IMPlICIT NONE
+    # remove stray comments and IMPLICIT NONE
     string = cls.removeStrayComments(string)
     lines = string.split("\n")
     lines = filter(lambda line : "implicit none" not in line.lower(), lines)
     return "\n".join(lines)
+        
+  @classmethod
+  def parse_conditionals(cls, text, defines):
+    def eval_conditional(matchobj):
+        statement = matchobj.groups()[1].split('#else')
+        statement.append('') # in case there was no else statement
+        if matchobj.groups()[0] in defines: return statement[0]
+        else: return statement[1]
+
+    pattern = r'#ifdef\s*(\S*)\s*((?:.(?!#if|#endif))*.)#endif'
+    regex = re.compile(pattern, re.DOTALL)
+    while True:
+        if not regex.search(text): break
+        text = regex.sub(eval_conditional, text)
+    return text
         
 class FileParser(Parser):
   
@@ -66,7 +80,8 @@ class FileParser(Parser):
       self.subroutines = subroutines
   
   @classmethod
-  def parse(cls, fileString):
+  def parse(cls, fileString, defines):
+    fileString = cls.parse_conditionals(fileString, defines)
     comments, rest = cls.parseComments(fileString)
     modules = ModuleParser.parse(rest)
     deps = DependencyParser.parse(rest)
@@ -76,7 +91,7 @@ class FileParser(Parser):
   
 class ProgramParser(FileParser):
   
-  PROGRAM_CHACKER_REGEX = re.compile(r"^\s*program\s*(?P<program_name>[_\w\d]+)", re.MULTILINE | re.IGNORECASE)
+  PROGRAM_CHECKER_REGEX = re.compile(r"^\s*program\s*(?P<program_name>[_\w\d]+)", re.MULTILINE | re.IGNORECASE)
   
   class Program(FileParser.File):
     def __init__(self, parentObject):
@@ -84,15 +99,15 @@ class ProgramParser(FileParser):
                                          parentObject.dependencies, parentObject.subroutines)
   
   @classmethod
-  def parse(cls, programString):
+  def parse(cls, programString, defines):
     # parse a program file and return a Program object
-    comment_modules_deps_subs = FileParser.parse(programString)
+    comment_modules_deps_subs = FileParser.parse(programString, defines)
     return cls.Program(comment_modules_deps_subs)
   
   @classmethod
   def isProgram(cls, fileString):
     """Should be called by main to check whether to parse a program or a normal file"""
-    checker_regex = cls.PROGRAM_CHACKER_REGEX
+    checker_regex = cls.PROGRAM_CHECKER_REGEX
     match = checker_regex.search(fileString)
     if not match:
       return False
@@ -218,10 +233,10 @@ class ArgumentParser(Parser):
   """
   # should match with here: http://en.wikibooks.org/wiki/Fortran/Fortran_variables
   # this matches much more than variables, like language constructs, but no easy way out
-  VARIABLE_REGEX = re.compile(r"(?P<type_name_args>\w+\s*(\(\s*[\w\.=\*]+\s*\))?)\s*" +\
+  VARIABLE_REGEX = re.compile(r"(?P<type_name_args>\w+\s*(\(\s*[\w\.=:\*]+\s*\))?)\s*" +\
                               r"(,\s*(?P<extra>(\w+(\(.*?\))?)))*" +\
                               r"\s*(::)?\s*" +\
-                              r"(?P<var_names>(\w+(\s*,\s*)?)+)" +\
+                              r"(?P<var_names>([\w)(:]+(\s*,\s*)?)+)" +\
                               r"\s*(!+(?P<variable_comment>.*))?")
                              
   class Argument(object):
@@ -276,19 +291,18 @@ class ClassArgumentParser(ArgumentParser):
 class SubroutineParser(Parser):
   """Parses subroutines"""
   
-  SUBROUTINE_REGEX =  re.compile(r"^\s*(?!!)(recursive|logical|integer|real\(.*\)|complex\(.*\)|type\(.*\))?" +\
-                      r"\s*(?P<category>subroutine|function)\s*(?P<subname>[\w\d\_]+)\s*" +\
-                      r"\((?P<argnames>([\w\d\_](\s*,\s*)?)+)\)\s*(result\((?P<result_name>(\w+))\))?" +\
+  SUBROUTINE_REGEX =  re.compile(r"^\s*(?!!)(?P<return_type>\w+(\(.*\))?)?\s*" +\
+                      r"(recursive|logical|integer|real\(.*\)|complex\(.*\)|type\(.*\))?" +\
+                      r"\s*(?P<category>subroutine|function)\s*(?P<subname>\w+)\s*" +\
+                      r"\((?P<argnames>(\w(\s*,\s*)?)+)\)\s*(result\((?P<result_name>(\w+))\))?" +\
                       r"(?P<subbody>.*?end\s*(?P=category)\s*(?P=subname)?)",
                       re.IGNORECASE | re.DOTALL | re.MULTILINE)
                      
   SUBROUTINE_ALIAS_REGEX = re.compile(r"procedure\s*::\s*(?P<subname>\w+)\s*=>\s*(?P<alias>\w+)\s*",
                                       re.IGNORECASE)
   
-  FUNCTION_REURN_TEMPLATE = r"{}\s*=\s*(?P<result_name>.*)$" # should be performed on a single line
-  
   class Subroutine(object):
-    def __init__(self, category, name, alias, arguments, comment, resultName):
+    def __init__(self, category, name, alias, arguments, comment, resultName, returnType):
       # category means either a 'function' or 'subroutine'
       self.category = category
       self.name = name 
@@ -296,6 +310,7 @@ class SubroutineParser(Parser):
       self.arguments = arguments
       self.comment = comment
       self.result_name = resultName
+      self.return_type = returnType
       
     def __eq__(self, other):
       # enough if they have same names
@@ -316,7 +331,6 @@ class SubroutineParser(Parser):
     # separate subroutines from each other, so the VariableParser can work correctly
     subroutine_matcher = cls.SUBROUTINE_REGEX
     alias_matcher = cls.SUBROUTINE_ALIAS_REGEX
-    return_template = cls.FUNCTION_REURN_TEMPLATE
     alias_matches = list(alias_matcher.finditer(string))
     found_aliases = [match.group("alias") for match in alias_matches]
     splitter = cls.SPLITTER_REGEX
@@ -330,33 +344,32 @@ class SubroutineParser(Parser):
       subcomment, rest = cls.parseComments(subbody)
       rest = cls.removeExtras(rest)
       rest = DependencyParser.removeDependencies(rest)
+      parsed_arguments = ArgumentParser.parse(rest) # this could also parse other things like subroutine variables
       subalias = ''
       if subname in found_aliases: # procedure/subroutine/function has an alias, assign it 
         for match in alias_matches:
           if match.group("alias") == subname:
             subname, subalias = match.group("subname"), match.group("alias")
-      category = result_dict["category"]
+      category = result_dict["category"].lower()
       argnames = result_dict["argnames"]
       result_name = result_dict["result_name"]
-      if category.lower() == "function" and result_name is None: # look for an assignment inside function body
-        return_regex = re.compile(return_template.format(subname), re.IGNORECASE)
-        for body_line in subbody.split("\n"):
-          body_line = body_line.strip()
-          return_match = return_regex.match(body_line)
-          if return_match:
-            result_name = return_match.group("result_name")
+      return_type = result_dict["return_type"] 
+      if category == "function" and return_type is None: # didn't find type in header
+        for argument in parsed_arguments:
+          if argument.name == result_name or argument.name == subname: # because the subname can be a variable
+            if argument.extras:
+              return_type = ' '.join([argument.type, argument.extras])
+            else:
+              return_type = argument.type
             break
+        else: # can't help
+          pass
       argnames = splitter.split(argnames)
-      if result_name:
-        result_name = result_name.strip() # in case of surrounding spaces inside braces
-      parsed_arguments = ArgumentParser.parse(rest) # this could also parse other things like subroutine variables
       for argument in parsed_arguments:
         if argument.name in argnames: # this filters subroutine variables out
           actual_args.append(argument)
-          argnames.remove(argument.name)
-        elif argument.name == result_name:
-          actual_args.append(argument)
-      subroutines.append(cls.Subroutine(category, subname, subalias, actual_args, subcomment, result_name))
+          argnames.remove(argument.name) # only the first match of argument name counts
+      subroutines.append(cls.Subroutine(category, subname, subalias, actual_args, subcomment, result_name, return_type))
     return subroutines
   
 class IndependentSubroutineParser(SubroutineParser):

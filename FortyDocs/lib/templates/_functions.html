@@ -4,7 +4,13 @@
   {% if loop.first %}
   <ul class="functions">
   {% endif %}
-    <li><b>{{ function.caption }}</b>
+  <li>
+  {% if function.return_doc %}
+    <b class="return_type"><a href="{{ function.return_doc }}">{{ function.return_caption }}</a></b>
+  {% else %}
+    <b class="return_type">{{ function.return_caption|default('void', true) }}</b>
+  {% endif %}
+    <b>{{ function.caption }}</b>
     {% if function.comment|trim %}
       <p><blockquote>{{ function.comment }}</blockquote></p>
     {% endif %}

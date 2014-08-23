@@ -17,11 +17,12 @@ class ModelFiller(object):
   stuff
   """
   
-  def __init__(self, sourceFolder):
+  def __init__(self, sourceFolder, defines):
     if not os.path.isdir(sourceFolder):
       raise ValueError("Invalid source directory : {}".format(sourceFolder))
       
     self._source = sourceFolder
+    self._defines = defines 
     self._processed_files_count = 0
     
   def fillModel(self):
@@ -44,9 +45,33 @@ class ModelFiller(object):
   
   def fileCount(self):
     return self._processed_files_count
-            
+  
   def _isFortranSource(self, fname):
     return fname.lower().endswith("f90")
+  
+  def _fileFromParser(self, ParserClass, fullFilename):
+    source = open(fullFilename, 'r').read()
+    parsed_file = ParserClass.parse(source, self._defines)
+    if ParserClass == FileParser:
+      dbfile = File()
+    elif ParserClass == ProgramParser:
+      dbfile = ProgramFile()
+    dbfile.name = fullFilename
+    dbfile.comment = parsed_file.comment
+    session.add(dbfile)
+    session.commit()
+    dbmodules = self._extractModules(parsed_file.modules)
+    for module in dbmodules: # associate the module with it's file
+      module.file_id = dbfile.id
+    dbdependencies = self._extractDependencies(parsed_file.dependencies)
+    dbfile.modules = dbmodules
+    dbfile.dependencies = dbdependencies
+    dbsubroutines = self._extractSubroutines(parsed_file.subroutines, dbfile)
+    for subroutine in dbsubroutines: # associate subroutines with their dbfile
+      subroutine.program_id = dbfile.id
+    dbfile.subroutines = dbsubroutines
+    session.commit()
+    return dbfile, parsed_file
   
   # All _extract* methods does is convert a parse object to database object.
   
@@ -75,7 +100,7 @@ class ModelFiller(object):
     res = []
     for subroutine in subroutineList:
       dbsubroutine = SubroutineSubclass(name=subroutine.name, alias=subroutine.alias, comment=subroutine.comment,
-                            category=subroutine.category, result_name=subroutine.result_name)
+                            category=subroutine.category, result_name=subroutine.result_name, return_type=subroutine.return_type)
       session.add(dbsubroutine)
       session.commit()
       arguments=self._extractArguments(subroutine.arguments, SubroutineArgument, dbsubroutine)
@@ -154,30 +179,6 @@ class ModelFiller(object):
         dependencies.append(Dependency(name=dep))
     return dependencies
   
-  def _fileFromParser(self, ParserClass, fullFilename):
-    source = open(fullFilename, 'r').read()
-    parsed_file = ParserClass.parse(source)
-    if ParserClass == FileParser:
-      dbfile = File()
-    elif ParserClass == ProgramParser:
-      dbfile = ProgramFile()
-    dbfile.name = fullFilename
-    dbfile.comment = parsed_file.comment
-    session.add(dbfile)
-    session.commit()
-    dbmodules = self._extractModules(parsed_file.modules)
-    for module in dbmodules: # associate the module with it's file
-      module.file_id = dbfile.id
-    dbdependencies = self._extractDependencies(parsed_file.dependencies)
-    dbfile.modules = dbmodules
-    dbfile.dependencies = dbdependencies
-    dbsubroutines = self._extractSubroutines(parsed_file.subroutines, dbfile)
-    for subroutine in dbsubroutines: # associate subroutines with their dbfile
-      subroutine.program_id = dbfile.id
-    dbfile.subroutines = dbsubroutines
-    session.commit()
-    return dbfile, parsed_file
-  
   def _extractInterfaces(self, interfaceList, dbModule):
     dbinterfaces = []
     for interface in interfaceList:
@@ -185,6 +186,7 @@ class ModelFiller(object):
       dbinterface.module_id = dbModule.id
       dbinterfaces.append(dbinterface)
     return dbinterfaces
+  
 
 def startParse(source):
   filler = ModelFiller(source)

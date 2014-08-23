@@ -9,7 +9,7 @@ from source_model import DATABASE_FILE, session, File, ProgramFile, Module, Clas
 from fshandler import FileSystemHandler
 import os, sys, re, treelib
 
-env = Environment(loader=FileSystemLoader("templates"))
+env = Environment(loader=FileSystemLoader("lib/templates"))
 NOISY = True
 
 class HTMLDocMaker(object):
@@ -17,7 +17,7 @@ class HTMLDocMaker(object):
   Read the database into HTML templates
   """
   
-  ARGUMENT_CLASS_EXTRACTOR_REGEX = re.compile("\w+\((?P<class>\w+)\)|\w+") # also match for things like 'integer'
+  ARGUMENT_CLASS_EXTRACTOR_REGEX = re.compile("class\((?P<class>\w+)\)") # also match for things like 'integer'
   
   def __init__(self, destinationDirectory, documentationTitle="Fortran Documentation Index"):
     if not os.path.exists(DATABASE_FILE):
@@ -282,7 +282,6 @@ class HTMLDocMaker(object):
     template_arguments = []
     dbarguments = dbSubroutine.arguments
     result_name = dbSubroutine.result_name
-    return_found_in_arguments = False
     for dbarg in dbarguments:
       argument_caption = dbarg.name
       argument_comment = dbarg.comment
@@ -305,21 +304,18 @@ class HTMLDocMaker(object):
         class_caption = dbarg.type
       if result_name and dbarg.name == result_name:
         is_return = True
-        return_found_in_arguments = True
         result_name = None
       else:
         is_return = False
       template_arguments.append({"caption":argument_caption, "comment":argument_comment,
                                  "class_doc":class_doc, "class_caption":class_caption,
                                  "extras":extras, "is_return":is_return})
-    if not return_found_in_arguments: # check a return in body
-      if result_name:
-        template_arguments.insert(0, {"caption": result_name, "class_caption":"<RETURN>", "is_return":True})
     return template_arguments
         
   def _parseSubroutines(self, dbSubroutines, perspective):
     template_subroutines = []
     template_functions = []
+    return_class_extractor_regex = self.ARGUMENT_CLASS_EXTRACTOR_REGEX
     for dbsub in dbSubroutines:
       subroutine_caption = "{}({})".format(dbsub.name, 
                                                 ", ".join([arg.name for arg in dbsub.arguments]))
@@ -328,9 +324,30 @@ class HTMLDocMaker(object):
       template_arguments = self._parseArguments(dbsub, perspective)
       args = {"caption":subroutine_caption, "comment":subroutine_comment,
                                    "arguments":template_arguments}
-      if dbsub.category.lower() == "subroutine":
+      if dbsub.category == "subroutine":
         template_subroutines.append(args)
-      elif dbsub.category.lower() == "function":
+      elif dbsub.category == "function":
+        return_type = dbsub.return_type
+        if return_type:
+          class_match = return_class_extractor_regex.match(return_type)
+          if class_match:
+            return_class = class_match.group("class")
+            # check it's database entry
+            db_return_class = session.query(Class).filter(Class.name==return_class).first()
+            if db_return_class:
+              return_doc = self._fshandler.classDocForName(db_return_class.name, perspective=perspective)
+              return_caption = db_return_class.name
+            else:
+              return_doc = None
+              return_caption = return_class
+          else:
+            return_doc = None
+            return_caption = return_type
+        else:
+          return_doc = None
+          return_caption = None
+        args["return_caption"] = return_caption
+        args["return_doc"] = return_doc
         template_functions.append(args)
     return template_subroutines, template_functions
   
@@ -464,13 +481,27 @@ class HTMLDocMaker(object):
     return trees
   
   def _parseTrees(self, dbClasses, perspective):
-    trees = []
     already_included_classes = set()
+    branches_trees = []
     for cls in dbClasses:
       if cls not in already_included_classes:
         class_tree, included_classes = self._treeBranchForClass(cls, perspective)
-        trees.append(class_tree)
+        branches_trees.append((included_classes, class_tree))
         already_included_classes.update(included_classes)
+    # keep the longest branch. and any classes that don't belong to it
+    longest_branch, corresponding_tree = [], None
+    trees = []
+    for (branch, tree) in branches_trees:
+      if len(branch) > len(longest_branch):
+        longest_branch = branch
+        corresponding_tree = tree
+    if corresponding_tree:
+      trees.append(corresponding_tree) # the longest tree should be always drawn
+    for (branch, tree) in branches_trees:
+      for dbcls in branch:
+        if dbcls not in longest_branch: # include it's tree
+          trees.append(tree)
+          break
     return trees
   
   def _parseFullTrees(self, dbClasses, perspective):

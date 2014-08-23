@@ -30,3 +30,6 @@ ul.arguments li.return {
 	color: #800080;
 	font-weight: bold;
 }
+b.return_type {
+	color: #4bdb22;
+}
