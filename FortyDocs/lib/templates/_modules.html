@@ -1,4 +1,5 @@
 {# expects a 'modules' variable #}
+{% if modules %}
 <h2>Modules</h2>
   {% for module in modules %}
   {% if loop.first %}
@@ -11,3 +12,4 @@
   {% else %}
   <h3>No Modules Defined Here</h3>
   {% endfor %}
+{% endif %}

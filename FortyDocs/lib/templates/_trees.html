@@ -1,4 +1,5 @@
 {# expects 'trees' variable. So always pass trees, even for a single class#}
+{% if trees %}
 <h2>Tree Diagrams</h2>
 {% for tree in trees %}
    <ul class="class-diagram{{ loop.index0 }}"> {# bundle the loop index with the class so you have multiple output containers #}
@@ -11,16 +12,13 @@
        <li><a href="{{ child.data.link }}">{{ child.data.caption }}</a>
      {% endif %}
      {% if tree.children(child.identifier) %}
-      {% if loop.first %}
        <ul>
-      {% endif %}
-       {{ loop(tree.children(child.identifier)) }}
-      {% if loop.last %}
+      {{ loop(tree.children(child.identifier)) }}
        </ul>
-      {% endif %}
      {% endif %}
      </li>
    {% endfor %}
     </ul>
    <div class="diagram-container{{ loop.index0 }}"></div>
 {% endfor %}
+{% endif %}

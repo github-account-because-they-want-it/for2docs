@@ -137,7 +137,7 @@ class Subroutine(DecBase):
   comment = Column(String)
   category = Column(String) # subroutine or function, always lowercase
   result_name = Column(String) # the result name is fetched here
-  return_type = Column(String) 
+  typeString = Column(String) 
   arguments = relationship("SubroutineArgument", backref="subroutine")
   
   type = Column(String)

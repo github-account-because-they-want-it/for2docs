@@ -1,4 +1,5 @@
 {# expects the 'classes' variable #}
+{% if classes %}
 <h2>Classes</h2>
 {% for class in classes %}
 {% if loop.first %}
@@ -9,3 +10,4 @@
   </ul>
 {% endif %}
 {% endfor %}
+{% endif %}

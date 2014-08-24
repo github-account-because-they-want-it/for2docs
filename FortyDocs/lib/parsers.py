@@ -4,6 +4,7 @@ Created on Aug 8, 2014
 '''
 
 import re
+from itertools import dropwhile
 
 class Parser(object):
   
@@ -233,11 +234,13 @@ class ArgumentParser(Parser):
   """
   # should match with here: http://en.wikibooks.org/wiki/Fortran/Fortran_variables
   # this matches much more than variables, like language constructs, but no easy way out
-  VARIABLE_REGEX = re.compile(r"(?P<type_name_args>\w+\s*(\(\s*[\w\.=:\*]+\s*\))?)\s*" +\
+  VARIABLE_REGEX = re.compile(r"(?P<type_name_args>\w+\s*(\(\s*[\w\.=:\*]+\s*\)|precision)?)\s*" +\
                               r"(,\s*(?P<extra>(\w+(\(.*?\))?)))*" +\
                               r"\s*(::)?\s*" +\
                               r"(?P<var_names>([\w)(:]+(\s*,\s*)?)+)" +\
                               r"\s*(!+(?P<variable_comment>.*))?")
+  # subroutine arguments can be defined in body with their name appended with (:) or like
+  ARGUMENT_NAME_TEMPLATE_REGEX = "{}(\(:\))?" # substitute the argument name here
                              
   class Argument(object):
     def __init__(self, name, type, extras, comment):
@@ -310,7 +313,7 @@ class SubroutineParser(Parser):
       self.arguments = arguments
       self.comment = comment
       self.result_name = resultName
-      self.return_type = returnType
+      self.typeString = returnType
       
     def __eq__(self, other):
       # enough if they have same names
@@ -331,6 +334,7 @@ class SubroutineParser(Parser):
     # separate subroutines from each other, so the VariableParser can work correctly
     subroutine_matcher = cls.SUBROUTINE_REGEX
     alias_matcher = cls.SUBROUTINE_ALIAS_REGEX
+    argument_template = ArgumentParser.ARGUMENT_NAME_TEMPLATE_REGEX
     alias_matches = list(alias_matcher.finditer(string))
     found_aliases = [match.group("alias") for match in alias_matches]
     splitter = cls.SPLITTER_REGEX
@@ -350,13 +354,17 @@ class SubroutineParser(Parser):
         for match in alias_matches:
           if match.group("alias") == subname:
             subname, subalias = match.group("subname"), match.group("alias")
+            break
       category = result_dict["category"].lower()
       argnames = result_dict["argnames"]
+      argnames = splitter.split(argnames)
+      compiled_argument_templates = [re.compile(argument_template.format(argname)) for argname in argnames]
       result_name = result_dict["result_name"]
       return_type = result_dict["return_type"] 
       if category == "function" and return_type is None: # didn't find type in header
         for argument in parsed_arguments:
-          if argument.name == result_name or argument.name == subname: # because the subname can be a variable
+          argument_match_template = re.compile(argument_template.format(result_name))
+          if argument_match_template.match(argument.name) or argument.name == subname or argument.name == subalias: # because the subname can be a variable
             if argument.extras:
               return_type = ' '.join([argument.type, argument.extras])
             else:
@@ -364,11 +372,11 @@ class SubroutineParser(Parser):
             break
         else: # can't help
           pass
-      argnames = splitter.split(argnames)
       for argument in parsed_arguments:
-        if argument.name in argnames: # this filters subroutine variables out
-          actual_args.append(argument)
-          argnames.remove(argument.name) # only the first match of argument name counts
+        for cat in compiled_argument_templates:
+          if cat.match(argument.name): # this filters subroutine variables in
+            actual_args.append(argument)
+            compiled_argument_templates.remove(cat) # only the first match of argument name counts
       subroutines.append(cls.Subroutine(category, subname, subalias, actual_args, subcomment, result_name, return_type))
     return subroutines
   
@@ -423,9 +431,13 @@ class ClassSubroutineParser(SubroutineParser):
       procedure_name = match_dict["procedure_name"]
       procedure_alias = match_dict["procedure_alias"]
       for file_subroutine in all_subroutines:
-        if file_subroutine.name == procedure_name or \
-            file_subroutine.name == procedure_alias:
-          all_class_subroutines.append(file_subroutine)
+        if procedure_alias: # if there's an alias, never match on name, to avoid duplicate subroutines
+          if file_subroutine.alias == procedure_alias:
+            all_class_subroutines.append(file_subroutine)
+            break
+        elif not file_subroutine.alias and file_subroutine.name == procedure_name:
+            all_class_subroutines.append(file_subroutine)
+            break
     return all_class_subroutines
   
 class InterfaceParser(Parser):

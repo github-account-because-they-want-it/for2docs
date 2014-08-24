@@ -1,4 +1,5 @@
 {# expects a 'functions' variable #}
+{% if functions %}
 <h2>Functions&nbsp;&nbsp;<small><a id="fcollapser" data-toggle="collapse" data-target="arguments" href="">Expand Arguments</a></small></h2>
   {% for function in functions %}
   {% if loop.first %}
@@ -21,3 +22,5 @@
     </ul>
     {% endif %}
   {% endfor %}
+  
+{% endif %}

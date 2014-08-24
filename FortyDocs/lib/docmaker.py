@@ -17,7 +17,7 @@ class HTMLDocMaker(object):
   Read the database into HTML templates
   """
   
-  ARGUMENT_CLASS_EXTRACTOR_REGEX = re.compile("class\((?P<class>\w+)\)") # also match for things like 'integer'
+  ARGUMENT_CLASS_EXTRACTOR_REGEX = re.compile("(class|type)\s*\((?P<class>\w+)\)", re.IGNORECASE) # also match for things like 'integer'
   
   def __init__(self, destinationDirectory, documentationTitle="Fortran Documentation Index"):
     if not os.path.exists(DATABASE_FILE):
@@ -114,7 +114,7 @@ class HTMLDocMaker(object):
                                                                         perspective=FileSystemHandler.FROM_MODULE_FOLDER)
       module_interfaces = dbmodule.interfaces
       template_interfaces = self._parseInterfaces(module_interfaces)
-      trees = self._parseTrees(dbmodule.classes, perspective=FileSystemHandler.FROM_MODULE_FOLDER)
+      trees = self._parseFullTrees(dbmodule.classes, perspective=FileSystemHandler.FROM_MODULE_FOLDER)
       if NOISY:
         print("Rendering template modules/{}".format(self._fshandler.makeHtml(dbmodule.name)))
       output_module_file = self._fshandler.getSaveModuleName(dbmodule.name)
@@ -278,7 +278,6 @@ class HTMLDocMaker(object):
     return template_modules
   
   def _parseArguments(self, dbSubroutine, perspective):
-    arg_class_regex = self.ARGUMENT_CLASS_EXTRACTOR_REGEX
     template_arguments = []
     dbarguments = dbSubroutine.arguments
     result_name = dbSubroutine.result_name
@@ -287,21 +286,7 @@ class HTMLDocMaker(object):
       argument_comment = dbarg.comment
       extras = dbarg.extras
       # try to find the class of the argument, if any
-      argclass_match = arg_class_regex.match(dbarg.type)
-      if argclass_match:
-        # found a class. Check it's db entry
-        argclass = argclass_match.group("class")
-        argdbclass = session.query(Class).filter(Class.name==argclass).first()
-        if argdbclass:
-          class_doc = self._fshandler.classDocForName(argdbclass.name, perspective)
-          class_caption = argdbclass.name
-        else:
-          class_doc = None
-          class_caption = dbarg.type
-      else:
-        # use the type as is
-        class_doc = None
-        class_caption = dbarg.type
+      class_doc, class_caption = self._classDocAndCaptionFromType(dbarg.type, perspective)
       if result_name and dbarg.name == result_name:
         is_return = True
         result_name = None
@@ -315,7 +300,6 @@ class HTMLDocMaker(object):
   def _parseSubroutines(self, dbSubroutines, perspective):
     template_subroutines = []
     template_functions = []
-    return_class_extractor_regex = self.ARGUMENT_CLASS_EXTRACTOR_REGEX
     for dbsub in dbSubroutines:
       subroutine_caption = "{}({})".format(dbsub.name, 
                                                 ", ".join([arg.name for arg in dbsub.arguments]))
@@ -327,25 +311,8 @@ class HTMLDocMaker(object):
       if dbsub.category == "subroutine":
         template_subroutines.append(args)
       elif dbsub.category == "function":
-        return_type = dbsub.return_type
-        if return_type:
-          class_match = return_class_extractor_regex.match(return_type)
-          if class_match:
-            return_class = class_match.group("class")
-            # check it's database entry
-            db_return_class = session.query(Class).filter(Class.name==return_class).first()
-            if db_return_class:
-              return_doc = self._fshandler.classDocForName(db_return_class.name, perspective=perspective)
-              return_caption = db_return_class.name
-            else:
-              return_doc = None
-              return_caption = return_class
-          else:
-            return_doc = None
-            return_caption = return_type
-        else:
-          return_doc = None
-          return_caption = None
+        return_type = dbsub.typeString
+        return_doc, return_caption = self._classDocAndCaptionFromType(return_type, perspective)
         args["return_caption"] = return_caption
         args["return_doc"] = return_doc
         template_functions.append(args)
@@ -477,10 +444,11 @@ class HTMLDocMaker(object):
   def _treesForFile(self, dbFile):
     # make a tree for each class in the file
     file_dbclasses = session.query(Class).join(Module).filter(Module.file_id==dbFile.id).all()
-    trees = self._parseTrees(file_dbclasses, perspective=FileSystemHandler.FROM_FILE_FOLDER)
+    trees = self._parseFullTrees(file_dbclasses, perspective=FileSystemHandler.FROM_FILE_FOLDER)
     return trees
   
   def _parseTrees(self, dbClasses, perspective):
+    # creates a single branch for every class
     already_included_classes = set()
     branches_trees = []
     for cls in dbClasses:
@@ -514,6 +482,28 @@ class HTMLDocMaker(object):
         if len(included_classes) > 1:
           trees.append(class_tree)
     return trees
+  
+  def _classDocAndCaptionFromType(self, typeString, perspective):
+    return_class_extractor_regex = self.ARGUMENT_CLASS_EXTRACTOR_REGEX
+    if typeString:
+      class_match = return_class_extractor_regex.match(typeString)
+      if class_match:
+        return_class = class_match.group("class")
+        # check it's database entry
+        db_return_class = session.query(Class).filter(Class.name==return_class).first()
+        if db_return_class:
+          class_doc = self._fshandler.classDocForName(db_return_class.name, perspective=perspective)
+          class_caption = db_return_class.name
+        else:
+          class_doc = None
+          class_caption = return_class
+      else:
+        class_doc = None
+        class_caption = typeString
+    else:
+      class_doc = None
+      class_caption = None
+    return class_doc, class_caption
   
   def _perspectiveForFile(self, dbFile):
     # dbFile is a File or ProgramFile. this method fixes the perspective for both

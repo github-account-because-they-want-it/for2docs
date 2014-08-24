@@ -100,7 +100,7 @@ class ModelFiller(object):
     res = []
     for subroutine in subroutineList:
       dbsubroutine = SubroutineSubclass(name=subroutine.name, alias=subroutine.alias, comment=subroutine.comment,
-                            category=subroutine.category, result_name=subroutine.result_name, return_type=subroutine.return_type)
+                            category=subroutine.category, result_name=subroutine.result_name, typeString=subroutine.typeString)
       session.add(dbsubroutine)
       session.commit()
       arguments=self._extractArguments(subroutine.arguments, SubroutineArgument, dbsubroutine)
