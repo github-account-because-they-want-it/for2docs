@@ -114,7 +114,7 @@ class HTMLDocMaker(object):
                                                                         perspective=FileSystemHandler.FROM_MODULE_FOLDER)
       module_interfaces = dbmodule.interfaces
       template_interfaces = self._parseInterfaces(module_interfaces)
-      trees = self._parseFullTrees(dbmodule.classes, perspective=FileSystemHandler.FROM_MODULE_FOLDER)
+      trees = self._treesFromClasses(dbmodule.classes, perspective=FileSystemHandler.FROM_MODULE_FOLDER)
       if NOISY:
         print("Rendering template modules/{}".format(self._fshandler.makeHtml(dbmodule.name)))
       output_module_file = self._fshandler.getSaveModuleName(dbmodule.name)
@@ -372,6 +372,41 @@ class HTMLDocMaker(object):
         included_classes.update(node_classes)
     return currentTree, included_classes
   
+  def _treesFromClasses(self, dbClasses, perspective):
+    # create trees that contain only dbClasses, showing relationships between them
+    trees = []
+    classes_per_tree = []
+    dbClasses = set(dbClasses)
+    for dbcls in dbClasses:
+      class_tree, included_classes = self._treeForClasses(dbcls, dbClasses, perspective)
+      if len(included_classes) > 1 and len(included_classes.intersection(dbClasses)) > 1 \
+          and not included_classes in classes_per_tree:
+        trees.append(class_tree)
+        classes_per_tree.append(included_classes)
+    return trees
+  
+  def _treeForClasses(self, aClass, dbClasses, perspective, currentTree=None, parentIdentifier="root"):
+    # create a full tree with the exception that only dbClasses are allowed to be in it
+    included_classes = set() 
+    if currentTree is None:
+      # climb up to the top
+      parent_id = aClass.parent_id
+      while parent_id is not None:
+        aClass = session.query(Class).filter(Class.id==parent_id).first()
+        parent_id = aClass.parent_id
+      # now i'm on top
+      currentTree = treelib.Tree()
+      currentTree.create_node("Root", "root")
+    if aClass in dbClasses:
+      self._createTreeNode(currentTree, aClass, perspective, parentIdentifier, originalId=-1) # don't care about originals here
+      parentIdentifier = aClass.name
+      included_classes.add(aClass)
+    children = session.query(Class).filter(Class.parent_id==aClass.id).all()
+    for child in children:
+      _, included = self._treeForClasses(child, dbClasses, perspective, currentTree, parentIdentifier=parentIdentifier)
+      included_classes.update(included)
+    return currentTree, included_classes
+    
   def _createTreeNode(self, currentTree, dbClass, perspective, parentIdentifier, originalId):
     if originalId == dbClass.id:
       original = True
@@ -444,7 +479,7 @@ class HTMLDocMaker(object):
   def _treesForFile(self, dbFile):
     # make a tree for each class in the file
     file_dbclasses = session.query(Class).join(Module).filter(Module.file_id==dbFile.id).all()
-    trees = self._parseFullTrees(file_dbclasses, perspective=FileSystemHandler.FROM_FILE_FOLDER)
+    trees = self._treesFromClasses(file_dbclasses, perspective=FileSystemHandler.FROM_FILE_FOLDER)
     return trees
   
   def _parseTrees(self, dbClasses, perspective):

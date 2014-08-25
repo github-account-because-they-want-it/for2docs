@@ -33,3 +33,13 @@ ul.arguments li.return {
 b.return_type {
 	color: #4bdb22;
 }
+div.orgChart {
+  background-color: beige;
+  border: 1px solid lightgray;
+  clear: left;
+  display: block;
+  float: left;
+  margin: 10px auto;
+  min-width: 100%;
+  padding: 20px;
+}
