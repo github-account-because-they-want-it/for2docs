@@ -168,7 +168,9 @@ class HTMLDocMaker(object):
       class_dbroutines = dbclass.subroutines
       template_subroutines, template_functions = self._parseSubroutines(class_dbroutines, 
                                                                         perspective=FileSystemHandler.FROM_CLASS_FOLDER)
+      template_generics = self._parseGenerics(dbclass.generics)
       trees = self._parseTrees([dbclass], perspective=FileSystemHandler.FROM_CLASS_FOLDER) # remember, template requires arrays
+      template_properties = self._parseProperties(dbclass.variables)
       class_output_file = self._fshandler.getSaveClassName(dbclass.name)
       if NOISY:
         print("Rendering template classes/{}".format(self._fshandler.makeHtml(dbclass.name)))
@@ -184,6 +186,8 @@ class HTMLDocMaker(object):
                               class_comment=class_comment,
                               subroutines=template_subroutines,
                               functions=template_functions,
+                              properties=template_properties,
+                              generics=template_generics,
                               trees=trees))
     print()
     
@@ -296,6 +300,18 @@ class HTMLDocMaker(object):
                                  "class_doc":class_doc, "class_caption":class_caption,
                                  "extras":extras, "is_return":is_return})
     return template_arguments
+  
+  def _parseProperties(self, dbProperties, perspective=FileSystemHandler.FROM_CLASS_FOLDER):
+    template_properties = []
+    for property in dbProperties:
+      property_caption = property.name
+      property_comment = property.comment
+      extras = property.extras
+      class_doc, class_caption = self._classDocAndCaptionFromType(property.type, perspective)
+      template_properties.append({"caption":property_caption, "comment":property_comment,
+                                  "class_doc":class_doc, "class_caption":class_caption,
+                                  "extras":extras})
+    return template_properties
         
   def _parseSubroutines(self, dbSubroutines, perspective):
     template_subroutines = []
@@ -326,6 +342,14 @@ class HTMLDocMaker(object):
       template_interfaces.append({"caption":interface_name,
                                   "procedures":procedure_names})
     return template_interfaces
+  
+  def _parseGenerics(self, dbGenerics):
+    template_generics = []
+    for dbgen in dbGenerics:
+      generic_caption = dbgen.name
+      procedure_names = dbgen.associated_procedures.split(',')
+      template_generics.append({"caption":generic_caption, "procedure_names":procedure_names})
+    return template_generics
   
   def _treeBranchForClass(self, dbClass, perspective):
     # create an inheritance branch by traveling up from dbClass

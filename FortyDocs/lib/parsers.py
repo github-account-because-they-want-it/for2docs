@@ -4,7 +4,7 @@ Created on Aug 8, 2014
 '''
 
 import re
-from itertools import dropwhile
+from util import TwoWayIterator
 
 class Parser(object):
   
@@ -196,13 +196,14 @@ class ClassParser(Parser):
                            re.MULTILINE | re.DOTALL | re.IGNORECASE)
   
   class Class(object):
-    def __init__(self, className, accessMod, parentName, comment, variables, subroutines):
+    def __init__(self, className, accessMod, parentName, comment, variables, subroutines, generics):
       self.name = className
       self.access_modifier = accessMod
       self.parent = parentName
       self.comment = comment
       self.variables = variables
       self.subroutines = subroutines
+      self.generics = generics
   
   @classmethod
   def parse(cls, moduleString):
@@ -220,7 +221,8 @@ class ClassParser(Parser):
       class_comment, rest = cls.parseComments(class_content)
       variables = ClassArgumentParser.parse(rest)
       subroutines = ClassSubroutineParser.parse(moduleString, class_content)
-      classes.append(cls.Class(class_name, access_modifier, parent_class, class_comment, variables, subroutines))
+      generics = ClassGenericParser.parse(rest)
+      classes.append(cls.Class(class_name, access_modifier, parent_class, class_comment, variables, subroutines, generics))
     return classes
 
 class ArgumentParser(Parser):
@@ -237,15 +239,17 @@ class ArgumentParser(Parser):
   VARIABLE_REGEX = re.compile(r"(?P<type_name_args>\w+\s*(\(\s*[\w\.=:\*]+\s*\)|precision)?)\s*" +\
                               r"(,\s*(?P<extra>(\w+(\(.*?\))?)))*" +\
                               r"\s*(::)?\s*" +\
-                              r"(?P<var_names>([\w)(:]+(\s*,\s*)?)+)" +\
+                              r"(?P<var_names>(\w+(\(.*\))?(\s*,\s*)?)+)" +\
                               r"\s*(!+(?P<variable_comment>.*))?")
   # subroutine arguments can be defined in body with their name appended with (:) or like
-  ARGUMENT_NAME_TEMPLATE_REGEX = "{}(\(:\))?" # substitute the argument name here
+  ARGUMENT_NAME_TEMPLATE_REGEX = r"{}(\(.*\))?" # substitute the argument name here
+  ARGUMENT_NAME_ONLY_REGEX = re.compile(r"(?P<name>\w+)(\(.*\))?") # better for display than the full name detected from body
                              
   class Argument(object):
-    def __init__(self, name, type, extras, comment):
+    def __init__(self, name, fullName, type, extras, comment):
       # extras will be a comma separated string
       self.name = name
+      self.full_name = fullName
       self.type = type
       self.extras = extras
       self.comment = comment
@@ -254,6 +258,7 @@ class ArgumentParser(Parser):
   def parse(cls, string):
     # string is expected to be a class string or subroutine string
     variable_matcher = cls.VARIABLE_REGEX
+    pure_argument_name_matcher = cls.ARGUMENT_NAME_ONLY_REGEX
     splitter_matcher = cls.SPLITTER_REGEX
     arguments = [] # could also be variables
     # perform a line search. should be faster
@@ -269,8 +274,11 @@ class ArgumentParser(Parser):
           arg_extras = ','.join(splitter_matcher.split(arg_extras))
         arg_names = result_dict["var_names"].strip()
         arg_names = splitter_matcher.split(arg_names)
-        for arg_name in arg_names:
-          arguments.append(cls.Argument(arg_name, arg_type, arg_extras, arg_comment)) 
+        for full_arg_name in arg_names:
+          detailed_argument = pure_argument_name_matcher.match(full_arg_name)
+          if detailed_argument:
+            pure_argument_name = detailed_argument.group("name")
+            arguments.append(cls.Argument(pure_argument_name, full_arg_name, arg_type, arg_extras, arg_comment)) 
     return arguments
 
 class ClassArgumentParser(ArgumentParser):
@@ -291,13 +299,51 @@ class ClassArgumentParser(ArgumentParser):
     else: # maybe the class doesn't have subroutine section. the definition should be short and safe for ArgumentParser
       return ArgumentParser.parse(classString)
 
+class ClassGenericParser(Parser):
+  
+  GENERIC_REGEX = re.compile(r"^generic\s*::\s*(?P<name>\w+)\s*=>\s*(?P<associated_procedures>(\w+(\s*,\s*)?)+)$", re.IGNORECASE)
+  
+  class Generic(object):
+    def __init__(self, name, associatedProcedures):
+      self.name = name
+      self.associated_procedures = associatedProcedures
+  
+  @classmethod 
+  def parse(cls, classBody):
+    body_lines = classBody.split("\n")
+    body_lines_iterator = TwoWayIterator(body_lines)
+    generic_matcher = cls.GENERIC_REGEX
+    splitter_regex = cls.SPLITTER_REGEX
+    generics = []
+    for line in body_lines_iterator:
+      lines_to_check = [line] # maybe the generic is split over more than one line by '&'
+      continuation_line = '&' in line
+      while continuation_line:
+        next_line = next(body_lines_iterator)
+        continuation_line = '&' in next_line
+        if continuation_line:
+          lines_to_check.append(next_line)
+      if len(lines_to_check) > 1: # must have found a multi-line generic
+        body_lines_iterator.prev()
+      lines_to_check = [line.replace('&', '').strip() for line in lines_to_check]
+      line = ' '.join(lines_to_check)
+      match = generic_matcher.match(line)
+      if match:
+        generic_name = match.group("name")
+        associated_procedures = match.group("associated_procedures")
+        procedure_names = splitter_regex.split(associated_procedures)
+        associated_procedures = ','.join(procedure_names)
+        generics.append(cls.Generic(generic_name, associated_procedures))
+    return generics
+  
+
 class SubroutineParser(Parser):
   """Parses subroutines"""
   
   SUBROUTINE_REGEX =  re.compile(r"^\s*(?!!)(?P<return_type>\w+(\(.*\))?)?\s*" +\
                       r"(recursive|logical|integer|real\(.*\)|complex\(.*\)|type\(.*\))?" +\
                       r"\s*(?P<category>subroutine|function)\s*(?P<subname>\w+)\s*" +\
-                      r"\((?P<argnames>(\w(\s*,\s*)?)+)\)\s*(result\((?P<result_name>(\w+))\))?" +\
+                      r"\((?P<argnames>(\w(\s*,\s*)?)+)\)\s*(result\s*\((?P<result_name>(\w+))\))?" +\
                       r"(?P<subbody>.*?end\s*(?P=category)\s*(?P=subname)?)",
                       re.IGNORECASE | re.DOTALL | re.MULTILINE)
                      
@@ -363,8 +409,9 @@ class SubroutineParser(Parser):
       return_type = result_dict["return_type"] 
       if category == "function" and return_type is None: # didn't find type in header
         for argument in parsed_arguments:
-          argument_match_template = re.compile(argument_template.format(result_name))
-          if argument_match_template.match(argument.name) or argument.name == subname or argument.name == subalias: # because the subname can be a variable
+          argument_match_template = re.compile(argument_template.format(result_name), re.IGNORECASE)
+          if argument_match_template.match(argument.name) or argument.name == subname \
+              or argument.name == subalias: # because the subname can be a variable
             if argument.extras:
               return_type = ' '.join([argument.type, argument.extras])
             else:
@@ -377,6 +424,7 @@ class SubroutineParser(Parser):
           if cat.match(argument.name): # this filters subroutine variables in
             actual_args.append(argument)
             compiled_argument_templates.remove(cat) # only the first match of argument name counts
+            break
       subroutines.append(cls.Subroutine(category, subname, subalias, actual_args, subcomment, result_name, return_type))
     return subroutines
   

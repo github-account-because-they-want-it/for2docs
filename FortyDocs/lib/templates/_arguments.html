@@ -1,8 +1,6 @@
 {# requires 'subroutine' variable. represents arguments for a single subroutine#}
-{% for argument in subroutine.arguments %}
-{% if loop.first %}
 <ul class="list-unstyled arguments collapse">
-{% endif %}
+{% for argument in subroutine.arguments %}
   {% if argument.is_return %}
     <li class="return"> 
     {% if argument.class_doc %}
@@ -21,7 +19,5 @@
     {% endif %}
   {% endif %}
   <em>{{ argument.comment|default('', true) }}</em></li>
-{% if loop.last %}
-</ul>
-{% endif %}
 {% endfor %}
+</ul>

@@ -57,7 +57,7 @@
         	$(this).orgChart({container:$('.' + output_diagram_class)});
         })
     });
-    $("#fcollapser, #scollapser, #icollapser").click(function(event) {
+    $("#fcollapser, #scollapser, #icollapser, #gcollapser").click(function(event) {
       event.preventDefault();
       if ($(this).attr("id") == "scollapser") {
         var $_tocollapse = $(".subroutines").find(".collapse");
@@ -67,6 +67,9 @@
       }
       else if ($(this).attr("id") == "icollapser") {
     	  var $_tocollapse = $(".interfaces").find(".collapse"); 
+      }
+      else if ($(this).attr("id") == "gcollapser") {
+    	  var $_tocollapse = $(".generics").find(".collapse")
       }
       var link_text = $(this).text();
       if (link_text.indexOf("Expand") !== -1) {

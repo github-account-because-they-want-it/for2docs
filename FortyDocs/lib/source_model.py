@@ -82,6 +82,18 @@ class Interface(DecBase):
   
   def __repr__(self):
     return "<Interface name={} at {:0x}>".format(self.name, id(self))
+  
+class Generic(DecBase):
+  
+  __tablename__ = "generic"
+  
+  id = Column(Integer, primary_key=True)
+  name = Column(String) # the mapper subroutine name
+  associated_procedures = Column(String) # comma-separated strings
+  class_id = Column(Integer, ForeignKey("class.id"))
+  
+  def __repr__(self):
+    return "<Generic {} at {:0x}>".format(self.name, id(self))
  
 class Module(DecBase):
   """Represents a Fortran module"""
@@ -119,6 +131,7 @@ class Class(DecBase):
   module_id = Column(Integer, ForeignKey("module.id"))
   subroutines = relationship("ClassSubroutine", backref="clazz") # can't use class as column name
   variables = relationship("ClassVariable", backref="clazz")
+  generics = relationship("Generic", backref="clazz")
   
   def __eq__(self, other):
     # used in doc maker to check classes already included for inheritance
@@ -193,7 +206,8 @@ class Variable(DecBase):
   __tablename__ = "variable"
   
   id = Column(Integer, primary_key=True)
-  name = Column(String)
+  name = Column(String) # like M
+  full_name = Column(String) # like M(this%love) or M(:)
   # an argument can be a parsed type or else (built-in, type from somewhere else...)
   type = Column(String) # i'll set the column type as a string.
   extras = Column(String) # a comma separated stuff after the argument type

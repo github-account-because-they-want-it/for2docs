@@ -6,7 +6,7 @@ import os
 from sqlalchemy.orm.exc import NoResultFound
 from source_model import (File, ProgramFile, ClassVariable, SubroutineArgument, Class,
                               ClassSubroutine, Dependency, Module, FileSubroutine, 
-                              session, ModuleSubroutine, Interface, createNewDatabase)
+                              session, ModuleSubroutine, Interface, Generic, createNewDatabase)
 from parsers import ProgramParser, FileParser
 
 NOISY = True
@@ -79,8 +79,8 @@ class ModelFiller(object):
     # extra is either a database Class or Subroutine
     res = []
     for arg in argList:
-      argument = ArgumentClass(name=arg.name, type=arg.type, comment=arg.comment,
-                              extras=arg.extras)
+      argument = ArgumentClass(name=arg.name, full_name=arg.full_name, type=arg.type, 
+                               comment=arg.comment, extras=arg.extras)
       # should associate these with a subroutine (in case of a subroutine argument) or a class otherwise
       if ArgumentClass == ClassVariable:
         argument.class_id = extra.id
@@ -117,6 +117,7 @@ class ModelFiller(object):
     dbcls.module_id = dbModule.id
     dbcls.comment = cls.comment
     dbcls.subroutines = self._extractSubroutines(cls.subroutines, dbcls)
+    dbcls.generics = self._extractGenerics(cls.generics)
     session.add(dbcls)
     session.commit()
     dbcls.variables = self._extractArguments(cls.variables, ClassVariable, dbModule)
@@ -186,6 +187,13 @@ class ModelFiller(object):
       dbinterface.module_id = dbModule.id
       dbinterfaces.append(dbinterface)
     return dbinterfaces
+  
+  def _extractGenerics(self, genericList):
+    dbgenerics = []
+    for generic in genericList:
+      dbgenerics.append(Generic(name=generic.name, associated_procedures=generic.associated_procedures))
+    
+    return dbgenerics
   
 
 def startParse(source):
