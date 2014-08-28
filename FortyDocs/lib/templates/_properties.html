@@ -7,7 +7,7 @@
     <li><a href="{{ property.class_doc }}">{{ property.class_caption }}</a>
     &nbsp;::&nbsp;{{ property.caption }}&nbsp;{{ property.extras|default('', true) }}</li>
   {% else %}
-    <li>{{ property.caption }}&nbsp;::&nbsp;{{ property.class_caption }}&nbsp;{{ property.extras|default('', true) }}</li>
+    <li>{{ property.class_caption }}&nbsp;{{ property.extras|default('', true) }}&nbsp;::&nbsp;{{ property.caption }}</li>
   {% endif %}
 {% endfor %}
 </ul>

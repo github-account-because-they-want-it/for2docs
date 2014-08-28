@@ -287,6 +287,7 @@ class HTMLDocMaker(object):
     result_name = dbSubroutine.result_name
     for dbarg in dbarguments:
       argument_caption = dbarg.name
+      argument_full_caption = dbarg.full_name
       argument_comment = dbarg.comment
       extras = dbarg.extras
       # try to find the class of the argument, if any
@@ -296,7 +297,8 @@ class HTMLDocMaker(object):
         result_name = None
       else:
         is_return = False
-      template_arguments.append({"caption":argument_caption, "comment":argument_comment,
+      template_arguments.append({"caption":argument_caption, "full_caption":argument_full_caption,
+                                  "comment":argument_comment,
                                  "class_doc":class_doc, "class_caption":class_caption,
                                  "extras":extras, "is_return":is_return})
     return template_arguments
