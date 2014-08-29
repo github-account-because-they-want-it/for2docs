@@ -15,10 +15,6 @@ div.orgChart td {
 	vertical-align: top;
 	padding: 0px 2px;
 }
-div.orgChart div.node.original{
-	background-color: #ffffff;
-  color: #c0c0c0; 
-}
 ul.arguments {
 	background-color: #eaeaea;
 	padding: 8px 4px;

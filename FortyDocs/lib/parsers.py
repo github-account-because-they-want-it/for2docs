@@ -4,7 +4,7 @@ Created on Aug 8, 2014
 '''
 
 import re
-from util import TwoWayIterator
+from util import ContinuationIterator
 
 class Parser(object):
   
@@ -236,7 +236,7 @@ class ArgumentParser(Parser):
   """
   # should match with here: http://en.wikibooks.org/wiki/Fortran/Fortran_variables
   # this matches much more than variables, like language constructs, but no easy way out
-  VARIABLE_REGEX = re.compile(r"(?P<type_name_args>\w+\s*(\(\s*[\w\.=:\*]+\s*\)|precision)?)\s*" +\
+  VARIABLE_REGEX = re.compile(r"(?P<type_name_args>\w+\s*(\(\s*[\w\.=,:\*]+\s*\)|precision)?)\s*" +\
                               r"(?P<extra>(,\s*\w+(\(.*?\))?)*)" +\
                               r"\s*(::)?\s*" +\
                               r"(?P<var_names>(\w+(\(.*\))?(\s*,\s*)?)+)" +\
@@ -244,6 +244,7 @@ class ArgumentParser(Parser):
   # subroutine arguments can be defined in body with their name appended with (:) or like
   ARGUMENT_NAME_TEMPLATE_REGEX = r"{}(\(.*\))?$" # substitute the argument name here
   ARGUMENT_NAME_ONLY_REGEX = re.compile(r"(?P<name>\w+)(\(.*\))?") # better for display than the full name detected from body
+  ARGUMENT_SPLITTER = re.compile("\s*(?!:),(?!:)\s*") # don't split between array braces
                              
   class Argument(object):
     def __init__(self, name, fullName, type, extras, comment):
@@ -259,10 +260,10 @@ class ArgumentParser(Parser):
     # string is expected to be a class string or subroutine string
     variable_matcher = cls.VARIABLE_REGEX
     pure_argument_name_matcher = cls.ARGUMENT_NAME_ONLY_REGEX
-    splitter_matcher = cls.SPLITTER_REGEX
+    splitter_matcher = cls.ARGUMENT_SPLITTER
     arguments = [] # could also be variables
     # perform a line search. should be faster
-    for line in string.split("\n"):
+    for line in ContinuationIterator(string.split("\n")):
       line = line.strip()
       match = variable_matcher.match(line)
       if match:
@@ -312,22 +313,11 @@ class ClassGenericParser(Parser):
   @classmethod 
   def parse(cls, classBody):
     body_lines = classBody.split("\n")
-    body_lines_iterator = TwoWayIterator(body_lines)
+    body_lines_iterator = ContinuationIterator(body_lines)
     generic_matcher = cls.GENERIC_REGEX
     splitter_regex = cls.SPLITTER_REGEX
     generics = []
     for line in body_lines_iterator:
-      lines_to_check = [line] # maybe the generic is split over more than one line by '&'
-      continuation_line = '&' in line
-      while continuation_line:
-        next_line = next(body_lines_iterator)
-        continuation_line = '&' in next_line
-        if continuation_line:
-          lines_to_check.append(next_line)
-      if len(lines_to_check) > 1: # must have found a multi-line generic
-        body_lines_iterator.prev()
-      lines_to_check = [line.replace('&', '').strip() for line in lines_to_check]
-      line = ' '.join(lines_to_check)
       match = generic_matcher.match(line)
       if match:
         generic_name = match.group("name")
@@ -342,10 +332,10 @@ class SubroutineParser(Parser):
   """Parses subroutines"""
   
   SUBROUTINE_REGEX =  re.compile(r"^[ \t]*(?!!)" +\
-                      r"(?P<return_type>recursive|logical|integer|real\(.*\)|complex\(.*\)|type\(.*\))?" +\
-                      r"\s*(?P<category>subroutine|function)\s*(?P<subname>\w+)\s*" +\
-                      r"\((?P<argnames>(\w(\s*,\s*)?)+)\)\s*(result\s*\((?P<result_name>(\w+))\))?" +\
-                      r"(?P<subbody>.*?end\s*(?P=category)\s*(?P=subname)?)",
+                      r"(?P<return_type>[\w():\*]+)?" +\
+                      r"[ \t]*(?P<category>subroutine|function)[ \t]*(?P<subname>\w+)\s*" +\
+                      r"\((?P<argnames>.*?)\)\s*(result\s*\((?P<result_name>(\w+))\))?" +\
+                      r"(?P<subbody>.*?end\s*(?P=category))",
                       re.IGNORECASE | re.DOTALL | re.MULTILINE)
                      
   SUBROUTINE_ALIAS_REGEX = re.compile(r"(procedure.*?::\s*(?P<procedure_name>\w+)\s*(=>\s*(?P<procedure_alias>\w+))?)" +\
@@ -406,6 +396,7 @@ class SubroutineParser(Parser):
             break
       category = result_dict["category"].lower()
       argnames = result_dict["argnames"]
+      argnames = argnames.replace('&', '') # remove line continuations
       argnames = splitter.split(argnames)
       compiled_argument_templates = [re.compile(argument_template.format(argname)) for argname in argnames]
       result_name = result_dict["result_name"]

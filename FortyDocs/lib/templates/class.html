@@ -10,6 +10,14 @@ subroutines
 functions
 trees
 #}
+{% block head %}
+<style>
+div.orgChart div.node.original{
+  background-color: #ffffff;
+  color: #c0c0c0; 
+}
+</style>
+{% endblock %}
 {% block subtitle %}
 {{ class_name }}:CLS
 {% endblock %}
