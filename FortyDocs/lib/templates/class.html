@@ -29,7 +29,7 @@ div.orgChart div.node.original{
   <small><a href="{{ class_file_doc|default('#', true) }}">
   <span class="label label-info">file:{{ class_file_caption }}</span></a></small></h1>
 {% if class_comment|trim %}
-<blockquote><p><pre>{{ class_comment }}</pre></p></blockquote>
+<blockquote><p><pre>{{ class_comment|trim|e }}</pre></p></blockquote>
 {% endif %}
 {% endblock %}
 {% block content %}

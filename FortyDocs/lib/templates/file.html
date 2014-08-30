@@ -4,7 +4,7 @@
 {% block lead_content %}
 <h1>{{ file_caption }} <span class="label label-info">File</span></h1>
 {% if file_comment|trim %}
-<blockquote><p><pre>{{ file_comment|trim }}</pre></p></blockquote>
+<blockquote><p><pre>{{ file_comment|trim|e }}</pre></p></blockquote>
 {% endif %}
 {% endblock %}
 {% block content %}

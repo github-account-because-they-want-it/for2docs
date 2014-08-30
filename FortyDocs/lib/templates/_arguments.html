@@ -20,6 +20,6 @@
       {{ argument.class_caption|e }}&nbsp;{{ argument.extras|default('', true) }} :: {{ argument.full_caption }}
     {% endif %}
   {% endif %}
-  <em>{{ argument.comment|default('', true) }}</em></li>
+  <em>{{ argument.comment|default('', true)|e }}</em></li>
 {% endfor %}
 </ul>

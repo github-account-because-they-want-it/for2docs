@@ -9,7 +9,7 @@ from source_model import DATABASE_FILE, session, File, ProgramFile, Module, Clas
 from fshandler import FileSystemHandler
 import os, sys, re, treelib
 
-env = Environment(loader=FileSystemLoader("lib/templates"))
+env = Environment(loader=FileSystemLoader(os.path.join(os.path.dirname(__file__),"templates")))
 NOISY = True
 
 class HTMLDocMaker(object):
@@ -306,7 +306,7 @@ class HTMLDocMaker(object):
   def _parseProperties(self, dbProperties, perspective=FileSystemHandler.FROM_CLASS_FOLDER):
     template_properties = []
     for property in dbProperties:
-      property_caption = property.name
+      property_caption = property.full_name
       property_comment = property.comment
       extras = property.extras
       class_doc, class_caption = self._classDocAndCaptionFromType(property.type, perspective)

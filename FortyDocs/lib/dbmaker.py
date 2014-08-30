@@ -47,7 +47,7 @@ class ModelFiller(object):
     return self._processed_files_count
   
   def _isFortranSource(self, fname):
-    return fname.lower().endswith("f90")
+    return fname.lower().endswith(".f90")
   
   def _fileFromParser(self, ParserClass, fullFilename):
     source = open(fullFilename, 'r').read()

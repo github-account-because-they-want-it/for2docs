@@ -12,7 +12,7 @@ DATABASE_FILE = os.path.join(os.path.dirname(__file__), "sourcedb.db")
 engine = create_engine("sqlite:///{}".format(DATABASE_FILE), echo=False)
 Session = sessionmaker(bind=engine)
 session = Session()
-DecBase = declarative_base(name="DecBase")
+DecBase = declarative_base()
 
 # a file can have many dependencies. A dependency can appear in many files. Many to Many
 file_dep_assoc = Table("file_dep_assoc", DecBase.metadata, 
@@ -249,4 +249,4 @@ class SubroutineArgument(Variable):
 def createNewDatabase():
   if os.path.exists(DATABASE_FILE):
     os.remove(DATABASE_FILE) 
-    DecBase.metadata.create_all(engine)
+  DecBase.metadata.create_all(engine)

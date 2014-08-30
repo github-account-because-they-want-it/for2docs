@@ -12,7 +12,7 @@
     <b class="return_type">{{ function.return_caption|default('void', true) }}</b>
   {% endif %}
     <b>{{ function.caption }}</b>
-    {% if function.comment|trim %}
+    {% if function.comment|trim|e %}
       <p><blockquote>{{ function.comment }}</blockquote></p>
     {% endif %}
     {% set subroutine=function %}

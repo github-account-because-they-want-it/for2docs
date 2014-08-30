@@ -70,6 +70,21 @@ class Parser(object):
         if not regex.search(text): break
         text = regex.sub(eval_conditional, text)
     return text
+  
+  @classmethod
+  def findnpc(cls, s):
+    """Finds comma positions not inside parenthesis. Useful for separating variables"""
+    comma_pos = []
+    inside_parens = False
+    for i, c in enumerate(s):
+      if c == '(':
+        inside_parens = True
+      elif c == ')':
+        inside_parens = False
+      elif c == ',' and not inside_parens:
+        comma_pos.append(i)
+    return comma_pos
+  
         
 class FileParser(Parser):
   
@@ -172,7 +187,7 @@ class DependencyParser(Parser):
         dependency = result_dict["dependency"]
         if dependency not in dependencies:
           dependencies.append(result_dict["dependency"])
-    return dependencies
+    return list(set(dependencies)) # eliminate duplicates
   
   @classmethod
   def isDependencyLine(cls, line):
@@ -234,18 +249,17 @@ class ArgumentParser(Parser):
     real(mcp), allocatable, dimension(:) :: bao_err
   I consider "allocatable, dimension(:)" as [extras] when parsing.
   """
-  # should match with here: http://en.wikibooks.org/wiki/Fortran/Fortran_variables
+  
   # this matches much more than variables, like language constructs, but no easy way out
-  VARIABLE_REGEX = re.compile(r"(?P<type_name_args>\w+\s*(\(\s*[\w\.=,:\*]+\s*\)|precision)?)\s*" +\
+  VARIABLE_REGEX = re.compile(r"(?P<type_name_args>\w+\s*(\(\s*[\w\.=,:\*]+\s*\)?|precision)?)\s*" +\
                               r"(?P<extra>(,\s*\w+(\(.*?\))?)*)" +\
                               r"\s*(::)?\s*" +\
-                              r"(?P<var_names>(\w+(\(.*\))?(\s*,\s*)?)+)" +\
+                              r"(?P<var_names>(\w+(\(.*?\))?(\s*,\s*)?)+)" +\
                               r"\s*(!+(?P<variable_comment>.*))?")
   # subroutine arguments can be defined in body with their name appended with (:) or like
   ARGUMENT_NAME_TEMPLATE_REGEX = r"{}(\(.*\))?$" # substitute the argument name here
   ARGUMENT_NAME_ONLY_REGEX = re.compile(r"(?P<name>\w+)(\(.*\))?") # better for display than the full name detected from body
-  ARGUMENT_SPLITTER = re.compile("\s*(?!:),(?!:)\s*") # don't split between array braces
-                             
+  
   class Argument(object):
     def __init__(self, name, fullName, type, extras, comment):
       # extras will be a comma separated string
@@ -260,7 +274,6 @@ class ArgumentParser(Parser):
     # string is expected to be a class string or subroutine string
     variable_matcher = cls.VARIABLE_REGEX
     pure_argument_name_matcher = cls.ARGUMENT_NAME_ONLY_REGEX
-    splitter_matcher = cls.ARGUMENT_SPLITTER
     arguments = [] # could also be variables
     # perform a line search. should be faster
     for line in ContinuationIterator(string.split("\n")):
@@ -270,18 +283,33 @@ class ArgumentParser(Parser):
         result_dict = match.groupdict()
         arg_comment = result_dict["variable_comment"]
         arg_type = result_dict["type_name_args"]
+        arg_type = arg_type.strip()
         arg_extras = result_dict["extra"]
         arg_extras = arg_extras.strip(", ")
         if arg_extras:
-          arg_extras = ','.join(splitter_matcher.split(arg_extras))
+          arg_extras = ','.join(cls.splitVariables(arg_extras))
         arg_names = result_dict["var_names"].strip()
-        arg_names = splitter_matcher.split(arg_names)
+        arg_names = cls.splitVariables(arg_names)
         for full_arg_name in arg_names:
           detailed_argument = pure_argument_name_matcher.match(full_arg_name)
           if detailed_argument:
             pure_argument_name = detailed_argument.group("name")
             arguments.append(cls.Argument(pure_argument_name, full_arg_name, arg_type, arg_extras, arg_comment)) 
     return arguments
+  
+  @classmethod
+  def splitVariables(cls, variableLine):
+    comma_positions = cls.findnpc(variableLine)
+    comma_positions.insert(0, None)
+    comma_positions.append(None)
+    variables = []
+    for i in range(len(comma_positions) - 1):
+      start_index = comma_positions[i]
+      if i > 0:
+        start_index += 1
+      end_index = comma_positions[i+1]
+      variables.append(variableLine[start_index:end_index])
+    return variables
 
 class ClassArgumentParser(ArgumentParser):
   """
@@ -476,7 +504,7 @@ class ClassSubroutineParser(SubroutineParser):
       procedure_alias = match_dict["procedure_alias"]
       for file_subroutine in all_subroutines:
         if procedure_alias: # if there's an alias, never match on name, to avoid duplicate subroutines
-          if file_subroutine.alias == procedure_alias:
+          if file_subroutine.alias.lower() == procedure_alias.lower():
             all_class_subroutines.append(file_subroutine)
             break
         elif not file_subroutine.alias and (file_subroutine.name == procedure_name or \

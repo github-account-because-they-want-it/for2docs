@@ -9,7 +9,7 @@
 {% else %}
 Unknown File</small></h1>
 {% endif %}
-{% if module_comment|trim %}
+{% if module_comment|trim|e %}
 <blockquote><p><pre>{{ module_comment }}</pre></p></blockquote>
 {% endif %}
 {% endblock %}
