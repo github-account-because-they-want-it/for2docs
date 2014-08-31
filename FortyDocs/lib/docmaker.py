@@ -4,6 +4,7 @@ Created on Aug 10, 2014
 '''
 from __future__ import print_function
 from jinja2 import Environment, FileSystemLoader
+from sqlalchemy import func
 from source_model import DATABASE_FILE, session, File, ProgramFile, Module, Class,\
   FileSubroutine
 from fshandler import FileSystemHandler
@@ -462,7 +463,7 @@ class HTMLDocMaker(object):
     for dbdep in dbDependencies:
       dependency_caption = dbdep.name
       # does a dependency have a matching module name and thus a file?. should yield at max one
-      user_defined_dependency = user_defined_dependencies.filter(Module.name==dbdep.name).first()
+      user_defined_dependency = user_defined_dependencies.filter(func.lower(Module.name)==func.lower(dbdep.name)).first()
       if user_defined_dependency: 
         dep_fileid = user_defined_dependency.file_id
         definer = session.query(File).filter(File.id==dep_fileid).first()
