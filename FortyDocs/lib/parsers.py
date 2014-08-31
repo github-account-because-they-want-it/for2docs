@@ -264,7 +264,7 @@ class ArgumentParser(Parser):
   """
   
   # this matches much more than variables, like language constructs, but no easy way out
-  VARIABLE_REGEX = re.compile(r"(?P<type_name_args>\w+\s*(\(\s*[\w\.=,:\*]+\s*\)?|precision)?)\s*" +\
+  VARIABLE_REGEX = re.compile(r"(?P<type_name_args>\w+\s*(\([\w\.=,:\s\*]+\)?|precision)?)\s*" +\
                               r"(?P<extra>(,\s*\w+(\(.*?\))?)*)" +\
                               r"\s*(::)?\s*" +\
                               r"(?P<var_names>(\w+(\(.*?\))?(\s*,\s*)?)+)" +\
@@ -301,8 +301,9 @@ class ArgumentParser(Parser):
         arg_extras = arg_extras.strip(", ")
         if arg_extras:
           arg_extras = ','.join(cls.splitVariables(arg_extras))
-        arg_names = result_dict["var_names"].strip()
+        arg_names = result_dict["var_names"]
         arg_names = cls.splitVariables(arg_names)
+        arg_names = [arg.strip() for arg in arg_names] # since splitVariables splits on commas, not spaces
         for full_arg_name in arg_names:
           detailed_argument = pure_argument_name_matcher.match(full_arg_name)
           if detailed_argument:
