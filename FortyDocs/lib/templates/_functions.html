@@ -1,10 +1,8 @@
 {# expects a 'functions' variable #}
 {% if functions %}
+<ul class="functions">
 <h2>Functions&nbsp;&nbsp;<small><a id="fcollapser" data-toggle="collapse" data-target="arguments" href="">Expand Arguments</a></small></h2>
   {% for function in functions %}
-  {% if loop.first %}
-  <ul class="functions">
-  {% endif %}
   <li>
   {% if function.return_doc %}
     <b class="return_type"><a href="{{ function.return_doc }}">{{ function.return_caption }}</a></b>
@@ -13,14 +11,11 @@
   {% endif %}
     <b>{{ function.caption }}</b>
     {% if function.comment|trim|e %}
-      <p><blockquote>{{ function.comment }}</blockquote></p>
+      <p><blockquote>{{ function.comment|e }}</blockquote></p>
     {% endif %}
     {% set subroutine=function %}
     {% include "_arguments.html" %}
     </li>
-    {% if loop.last %}
-    </ul>
-    {% endif %}
   {% endfor %}
-  
+</ul>
 {% endif %}
