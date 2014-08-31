@@ -132,7 +132,7 @@ class ProgramParser(FileParser):
   
 class ModuleParser(Parser):
   
-  MODULE_EXTRACTOR_REGEX = re.compile(r"^\s*(?!!)module\s*(?P<module_name>\w+)\s*$(?P<module_content>.*)end\s*module\s*(?P=module_name)?",
+  MODULE_EXTRACTOR_REGEX = re.compile(r"^\s*(?!!)module\s*(?P<module_name>\w+)\s*$(?P<module_content>.*?)end\s*module",
                                        re.MULTILINE | re.DOTALL | re.IGNORECASE)
   
   class Module(object):
