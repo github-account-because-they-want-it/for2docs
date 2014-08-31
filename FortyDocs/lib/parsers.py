@@ -85,7 +85,19 @@ class Parser(object):
         comma_pos.append(i)
     return comma_pos
   
-        
+  @classmethod
+  def uniqueStrings(cls, stringList):
+    """Removes duplicate strings case-insensitively"""
+    lowered = []
+    uniqs = []
+    for s in stringList:
+      lower_s = s.lower()
+      if lower_s not in lowered:
+        lowered.append(lower_s)
+        uniqs.append(s)
+    return uniqs
+      
+    
 class FileParser(Parser):
   
   class File(object):
@@ -187,7 +199,8 @@ class DependencyParser(Parser):
         dependency = result_dict["dependency"]
         if dependency not in dependencies:
           dependencies.append(result_dict["dependency"])
-    return list(set(dependencies)) # eliminate duplicates
+    dependencies = cls.uniqueStrings(dependencies) # remove duplicates
+    return dependencies 
   
   @classmethod
   def isDependencyLine(cls, line):
@@ -370,6 +383,8 @@ class SubroutineParser(Parser):
                                       r"|(final\s*::\s*(?P<final_procedure_name>\w+))",
                                       re.IGNORECASE)
   
+  HEADER_KEYWORDS_REGEX = re.compile("recursive|pure|elemental", re.IGNORECASE)
+  
   class Subroutine(object):
     def __init__(self, category, name, alias, arguments, comment, resultName, returnType):
       # category means either a 'function' or 'subroutine'
@@ -402,6 +417,7 @@ class SubroutineParser(Parser):
     subroutine_matcher = cls.SUBROUTINE_REGEX
     alias_matcher = cls.SUBROUTINE_ALIAS_REGEX
     argument_template = ArgumentParser.ARGUMENT_NAME_TEMPLATE_REGEX
+    function_type_regex = cls.HEADER_KEYWORDS_REGEX
     alias_matches = list(alias_matcher.finditer(string))
     found_aliases = [match.group("procedure_alias") for match in alias_matches]
     splitter = cls.SPLITTER_REGEX
@@ -428,8 +444,11 @@ class SubroutineParser(Parser):
       argnames = splitter.split(argnames)
       compiled_argument_templates = [re.compile(argument_template.format(argname)) for argname in argnames]
       result_name = result_dict["result_name"]
-      return_type = result_dict["return_type"] 
-      if category == "function" and return_type is None: # didn't find type in header
+      return_type = result_dict["return_type"]
+      return_type = return_type if return_type else '' # stringify for the next match
+      if function_type_regex.match(return_type): # the function has a keyword defined. Return type must be specified in result()
+        return_type = None
+      if category == "function" and not return_type: # didn't find type in header
         for argument in parsed_arguments:
           if result_name:
             argument_match_template = re.compile(argument_template.format(result_name), re.IGNORECASE)
