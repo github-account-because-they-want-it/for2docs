@@ -470,7 +470,7 @@ class HTMLDocMaker(object):
         if definer is not None:
           definer_caption = self._fshandler.pureFileName(definer.name)
           definer_doc = self._fshandler.fileDocForPath(definer.name, perspective)
-          dependency_doc = self._fshandler.moduleDocForName(dbdep.name, perspective)
+          dependency_doc = self._fshandler.moduleDocForName(user_defined_dependency.name, perspective)
         else: # weird
           definer_caption = None
           definer_doc = None
