@@ -319,6 +319,8 @@ class HTMLDocMaker(object):
   def _parseSubroutines(self, dbSubroutines, perspective):
     template_subroutines = []
     template_functions = []
+    # sort
+    dbSubroutines = sorted(dbSubroutines, key=lambda sub:sub.name.lower())
     for dbsub in dbSubroutines:
       subroutine_caption = "{}({})".format(dbsub.name, 
                                                 ", ".join([arg.name for arg in dbsub.arguments]))
